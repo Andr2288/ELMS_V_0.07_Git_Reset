@@ -1,5 +1,5 @@
 @echo off
-echo Starting FlashCard App...
+echo Starting FlashEng-Module App...
 echo.
 
 REM Check if node_modules exist and install if needed
@@ -35,13 +35,11 @@ start http://localhost:5173
 :menu
 echo.
 echo ================================
-echo FlashCard App is running!
+echo FlashEng-Module App is running!
 echo ================================
 echo Backend: http://localhost:5001
 echo Frontend: http://localhost:5173
 echo.
-echo Browser should open automatically.
-echo Server windows are minimized to taskbar.
 echo.
 echo Options:
 echo [S] - Stop all servers and exit
@@ -70,8 +68,6 @@ if %errorlevel% equ 3 (
     echo Exiting... Servers will continue running.
     echo Use stop.bat to stop them later.
     echo.
-    echo Press any key to close this window...
-    pause > nul
     exit /b
 )
 if %errorlevel% equ 4 (

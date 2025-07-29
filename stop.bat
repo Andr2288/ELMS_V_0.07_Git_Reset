@@ -19,6 +19,4 @@ taskkill /f /fi "WINDOWTITLE eq Frontend Server*" 2>nul
 
 echo.
 echo All FlashCard App processes have been stopped.
-echo.
-echo Goodbye!
 timeout /t 2 /nobreak > nul
