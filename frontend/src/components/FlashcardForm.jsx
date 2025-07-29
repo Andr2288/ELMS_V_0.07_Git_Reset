@@ -1,7 +1,7 @@
-// frontend/src/components/FlashcardForm.jsx - ВИПРАВЛЕНА ВЕРСІЯ
+// frontend/src/components/FlashcardForm.jsx - ОНОВЛЕНА ВЕРСІЯ З ПІДТРИМКОЮ КІЛЬКОХ ПРИКЛАДІВ
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Save, X, Volume2, Folder, Settings, Sparkles, RotateCcw, AlertCircle, Loader, StickyNote, Zap } from "lucide-react";
+import { Save, X, Volume2, Folder, Settings, Sparkles, RotateCcw, AlertCircle, Loader, StickyNote, Zap, Plus, Trash2 } from "lucide-react";
 import { axiosInstance } from "../lib/axios.js";
 import { useCategoryStore } from "../store/useCategoryStore.js";
 import { useUserSettingsStore } from "../store/useUserSettingsStore.js";
@@ -31,7 +31,7 @@ const FlashcardForm = ({
     translation: "",
     shortDescription: "",
     explanation: "",
-    example: "",
+    examples: ["", "", ""], // ОНОВЛЕНО: тепер масив з 3 прикладів
     notes: "",
     isAIGenerated: false,
     categoryId: "",
@@ -52,7 +52,7 @@ const FlashcardForm = ({
   const [isGeneratingField, setIsGeneratingField] = useState({
     shortDescription: false,
     explanation: false,
-    example: false,
+    examples: false, // ОНОВЛЕНО: тепер examples замість example
     transcription: false,
     translation: false
   });
@@ -96,13 +96,28 @@ const FlashcardForm = ({
 
   useEffect(() => {
     if (editingCard) {
+      // ОНОВЛЕНО: обробляємо examples як масив
+      let examples = ["", "", ""];
+      if (editingCard.examples && Array.isArray(editingCard.examples)) {
+        examples = [...editingCard.examples];
+        // Доповнюємо до 3 елементів якщо менше
+        while (examples.length < 3) {
+          examples.push("");
+        }
+        // Обрізаємо до 3 елементів якщо більше
+        examples = examples.slice(0, 3);
+      } else if (editingCard.example) {
+        // Зворотна сумісність зі старим форматом
+        examples[0] = editingCard.example;
+      }
+
       setFormData({
         text: editingCard.text || "",
         transcription: editingCard.transcription || "",
         translation: editingCard.translation || "",
         shortDescription: editingCard.shortDescription || "",
         explanation: editingCard.explanation || "",
-        example: editingCard.example || "",
+        examples: examples,
         notes: editingCard.notes || "",
         isAIGenerated: editingCard.isAIGenerated || false,
         categoryId: editingCard.categoryId?._id || "",
@@ -115,7 +130,7 @@ const FlashcardForm = ({
         translation: "",
         shortDescription: "",
         explanation: "",
-        example: "",
+        examples: ["", "", ""],
         notes: "",
         isAIGenerated: false,
         categoryId: preselectedCategoryId || "",
@@ -275,6 +290,8 @@ const FlashcardForm = ({
       const submitData = {
         ...formData,
         categoryId: formData.categoryId || null,
+        // Фільтруємо порожні приклади
+        examples: formData.examples.filter(ex => ex.trim())
       };
 
       await onSubmit(submitData);
@@ -295,6 +312,37 @@ const FlashcardForm = ({
       ...prev,
       [field]: value,
     }));
+  };
+
+  // НОВА ФУНКЦІЯ: Обробка зміни прикладів
+  const handleExampleChange = (index, value) => {
+    const newExamples = [...formData.examples];
+    newExamples[index] = value;
+    setFormData((prev) => ({
+      ...prev,
+      examples: newExamples,
+    }));
+  };
+
+  // НОВА ФУНКЦІЯ: Додавання нового приклада
+  const addExample = () => {
+    if (formData.examples.length < 5) { // Максимум 5 прикладів
+      setFormData((prev) => ({
+        ...prev,
+        examples: [...prev.examples, ""]
+      }));
+    }
+  };
+
+  // НОВА ФУНКЦІЯ: Видалення приклада
+  const removeExample = (index) => {
+    if (formData.examples.length > 1) { // Мінімум 1 приклад
+      const newExamples = formData.examples.filter((_, i) => i !== index);
+      setFormData((prev) => ({
+        ...prev,
+        examples: newExamples
+      }));
+    }
   };
 
   const handleClose = () => {
@@ -329,11 +377,35 @@ const FlashcardForm = ({
 
       const result = response.data.result;
 
-      setFormData(prev => ({
-        ...prev,
-        [fieldType]: result,
-        isAIGenerated: true
-      }));
+      if (fieldType === "examples") {
+        // ОНОВЛЕНО: обробляємо масив прикладів
+        if (Array.isArray(result)) {
+          const newExamples = ["", "", ""];
+          result.forEach((example, index) => {
+            if (index < 3 && example) {
+              newExamples[index] = example;
+            }
+          });
+          setFormData(prev => ({
+            ...prev,
+            examples: newExamples,
+            isAIGenerated: true
+          }));
+        } else {
+          // Fallback якщо результат не масив
+          setFormData(prev => ({
+            ...prev,
+            examples: [result || "", "", ""],
+            isAIGenerated: true
+          }));
+        }
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          [fieldType]: result,
+          isAIGenerated: true
+        }));
+      }
 
       toast.success(`${getFieldName(fieldType)} згенеровано!`);
 
@@ -358,7 +430,7 @@ const FlashcardForm = ({
     const names = {
       shortDescription: "Короткий опис",
       explanation: "Детальне пояснення",
-      example: "Приклад",
+      examples: "Приклади", // ОНОВЛЕНО
       transcription: "Транскрипцію",
       translation: "Переклад"
     };
@@ -389,13 +461,26 @@ const FlashcardForm = ({
       if (response.data.parsed) {
         const aiContent = response.data.result;
 
+        // ОНОВЛЕНО: обробляємо examples як масив
+        let examples = ["", "", ""];
+        if (aiContent.examples && Array.isArray(aiContent.examples)) {
+          aiContent.examples.forEach((example, index) => {
+            if (index < 3 && example) {
+              examples[index] = example;
+            }
+          });
+        } else if (aiContent.example) {
+          // Зворотна сумісність
+          examples[0] = aiContent.example;
+        }
+
         setFormData(prev => ({
           ...prev,
           transcription: aiContent.transcription || "",
           translation: aiContent.translation || "",
           shortDescription: aiContent.shortDescription || "",
           explanation: aiContent.explanation || "",
-          example: aiContent.example || "",
+          examples: examples,
           notes: aiContent.notes || "",
           isAIGenerated: true
         }));
@@ -408,9 +493,30 @@ const FlashcardForm = ({
         const translationMatch = rawText.match(/translation["']?\s*:\s*["']([^"']+)["']/i);
         const shortDescMatch = rawText.match(/shortDescription["']?\s*:\s*["']([^"']+)["']/i);
         const explanationMatch = rawText.match(/explanation["']?\s*:\s*["']([^"']+)["']/i);
-        const exampleMatch = rawText.match(/example["']?\s*:\s*["']([^"']+)["']/i);
         const transcriptionMatch = rawText.match(/transcription["']?\s*:\s*["']([^"']+)["']/i);
         const notesMatch = rawText.match(/notes["']?\s*:\s*["']([^"']+)["']/i);
+
+        // ОНОВЛЕНО: намагаємося витягти examples як масив
+        let examples = ["", "", ""];
+        const examplesMatch = rawText.match(/examples["']?\s*:\s*\[([\s\S]*?)\]/i);
+        if (examplesMatch) {
+          try {
+            const examplesArray = JSON.parse(`[${examplesMatch[1]}]`);
+            examplesArray.forEach((example, index) => {
+              if (index < 3 && example) {
+                examples[index] = example.replace(/^["']|["']$/g, '');
+              }
+            });
+          } catch (e) {
+            console.log("Error parsing examples array:", e);
+          }
+        } else {
+          // Fallback на старий формат
+          const exampleMatch = rawText.match(/example["']?\s*:\s*["']([^"']+)["']/i);
+          if (exampleMatch) {
+            examples[0] = exampleMatch[1];
+          }
+        }
 
         setFormData(prev => ({
           ...prev,
@@ -418,7 +524,7 @@ const FlashcardForm = ({
           translation: translationMatch ? translationMatch[1] : "",
           shortDescription: shortDescMatch ? shortDescMatch[1] : "",
           explanation: explanationMatch ? explanationMatch[1] : "",
-          example: exampleMatch ? exampleMatch[1] : "",
+          examples: examples,
           notes: notesMatch ? notesMatch[1] : "",
           isAIGenerated: true
         }));
@@ -451,7 +557,7 @@ const FlashcardForm = ({
         translation: "",
         shortDescription: "",
         explanation: "",
-        example: "",
+        examples: ["", "", ""],
         notes: "",
         isAIGenerated: false
       }));
@@ -511,18 +617,41 @@ const FlashcardForm = ({
         const translationMatch = rawText.match(/translation["']?\s*:\s*["']([^"']+)["']/i);
         const shortDescMatch = rawText.match(/shortDescription["']?\s*:\s*["']([^"']+)["']/i);
         const explanationMatch = rawText.match(/explanation["']?\s*:\s*["']([^"']+)["']/i);
-        const exampleMatch = rawText.match(/example["']?\s*:\s*["']([^"']+)["']/i);
         const transcriptionMatch = rawText.match(/transcription["']?\s*:\s*["']([^"']+)["']/i);
         const notesMatch = rawText.match(/notes["']?\s*:\s*["']([^"']+)["']/i);
+
+        // ОНОВЛЕНО: обробляємо examples
+        let examples = [];
+        const examplesMatch = rawText.match(/examples["']?\s*:\s*\[([\s\S]*?)\]/i);
+        if (examplesMatch) {
+          try {
+            const examplesArray = JSON.parse(`[${examplesMatch[1]}]`);
+            examples = examplesArray.map(ex => ex.replace(/^["']|["']$/g, '')).slice(0, 3);
+          } catch (e) {
+            console.log("Error parsing examples:", e);
+            const exampleMatch = rawText.match(/example["']?\s*:\s*["']([^"']+)["']/i);
+            if (exampleMatch) {
+              examples = [exampleMatch[1]];
+            }
+          }
+        }
 
         aiContent = {
           transcription: transcriptionMatch ? transcriptionMatch[1] : "",
           translation: translationMatch ? translationMatch[1] : "",
           shortDescription: shortDescMatch ? shortDescMatch[1] : "",
           explanation: explanationMatch ? explanationMatch[1] : "",
-          example: exampleMatch ? exampleMatch[1] : "",
+          examples: examples,
           notes: notesMatch ? notesMatch[1] : "",
         };
+      }
+
+      // ОНОВЛЕНО: обробляємо examples в submitData
+      let examples = [];
+      if (aiContent.examples && Array.isArray(aiContent.examples)) {
+        examples = aiContent.examples.filter(ex => ex && ex.trim());
+      } else if (aiContent.example) {
+        examples = [aiContent.example];
       }
 
       // Prepare data for submission
@@ -532,7 +661,7 @@ const FlashcardForm = ({
         translation: aiContent.translation || "",
         shortDescription: aiContent.shortDescription || "",
         explanation: aiContent.explanation || "",
-        example: aiContent.example || "",
+        examples: examples,
         notes: aiContent.notes || "",
         isAIGenerated: true,
         categoryId: formData.categoryId || null,
@@ -653,7 +782,7 @@ const FlashcardForm = ({
 
   return (
       <div className="fixed inset-0 bg-gray-600/80 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
           {/* Fixed Header */}
           <div className="sticky top-0 bg-white p-6 border-b border-gray-200 rounded-t-2xl z-10 flex-shrink-0">
             <div className="flex justify-between items-center">
@@ -720,7 +849,7 @@ const FlashcardForm = ({
                         Повна генерація за допомогою ШІ
                       </h3>
                       <p className="text-xs text-purple-600 mb-3">
-                        Штучний інтелект створить всі поля картки автоматично на основі введеного слова
+                        Штучний інтелект створить всі поля картки автоматично на основі введеного слова (включаючи 3 приклади)
                       </p>
 
                       <div className="mb-3 text-sm text-purple-800">
@@ -951,7 +1080,7 @@ const FlashcardForm = ({
                     />
                   </div>
 
-                  {/* Short Description with AI button - НОВИЙ БЛОК */}
+                  {/* Short Description with AI button */}
                   <div>
                     <div className="flex justify-between items-center mb-2">
                       <label className="block text-sm font-medium text-gray-700">
@@ -1018,34 +1147,66 @@ const FlashcardForm = ({
                     />
                   </div>
 
-                  {/* Example with AI button */}
+                  {/* ОНОВЛЕНО: Examples with AI button - тепер відображаємо кілька прикладів */}
                   <div>
                     <div className="flex justify-between items-center mb-2">
                       <label className="block text-sm font-medium text-gray-700">
-                        Приклад вживання
+                        Приклади вживання
                       </label>
                       <button
                           type="button"
-                          onClick={() => generateField("example")}
-                          disabled={isGeneratingField.example || !formData.text.trim() || isQuickCreating}
+                          onClick={() => generateField("examples")}
+                          disabled={isGeneratingField.examples || !formData.text.trim() || isQuickCreating}
                           className="text-xs bg-purple-100 hover:bg-purple-200 disabled:bg-gray-100 text-purple-700 px-2 py-1 rounded flex items-center space-x-1"
                       >
-                        {isGeneratingField.example ? (
+                        {isGeneratingField.examples ? (
                             <Loader className="w-3 h-3 animate-spin" />
                         ) : (
                             <Zap className="w-3 h-3" />
                         )}
-                        <span>ШІ</span>
+                        <span>ШІ (3 приклади)</span>
                       </button>
                     </div>
-                    <textarea
-                        value={formData.example}
-                        onChange={(e) => handleInputChange("example", e.target.value)}
-                        placeholder="Приклад речення з використанням цього слова..."
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none disabled:bg-gray-100"
-                        rows="3"
-                        disabled={isQuickCreating}
-                    />
+
+                    <div className="space-y-3">
+                      {formData.examples.map((example, index) => (
+                          <div key={index} className="flex space-x-2">
+                            <div className="flex-1">
+                              <textarea
+                                  value={example}
+                                  onChange={(e) => handleExampleChange(index, e.target.value)}
+                                  placeholder={`Приклад ${index + 1}...`}
+                                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none disabled:bg-gray-100"
+                                  rows="2"
+                                  disabled={isQuickCreating}
+                              />
+                            </div>
+                            {formData.examples.length > 1 && (
+                                <button
+                                    type="button"
+                                    onClick={() => removeExample(index)}
+                                    disabled={isQuickCreating}
+                                    className="px-2 py-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                                    title="Видалити приклад"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                            )}
+                          </div>
+                      ))}
+
+                      {formData.examples.length < 5 && (
+                          <button
+                              type="button"
+                              onClick={addExample}
+                              disabled={isQuickCreating}
+                              className="w-full px-4 py-2 border-2 border-dashed border-gray-300 hover:border-gray-400 text-gray-600 hover:text-gray-800 rounded-lg transition-colors flex items-center justify-center space-x-2 disabled:opacity-50"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>Додати ще один приклад</span>
+                          </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Notes */}

@@ -10,4 +10,7 @@ const router = express.Router();
 // Generate flashcard content with AI
 router.post("/generate-flashcard", authMiddleware.protectRoute, openaiController.generateFlashcardContent);
 
+// Regenerate examples for existing flashcard
+router.post("/regenerate-examples/:id", authMiddleware.protectRoute, openaiController.regenerateExamples);
+
 export default router;

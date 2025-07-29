@@ -1,10 +1,9 @@
-// frontend/src/pages/HomePage.jsx
-// Прибрано праву панель з AI інформацією
+// frontend/src/pages/HomePage.jsx - ОНОВЛЕНА ВЕРСІЯ З ПІДТРИМКОЮ КІЛЬКОХ ПРИКЛАДІВ
 
 import { useState, useEffect } from "react";
 import { useFlashcardStore } from "../store/useFlashcardStore.js";
 import { useCategoryStore } from "../store/useCategoryStore.js";
-import { Plus, Edit, Trash2, BookOpen, Grid3X3, Eye, Folder, ArrowLeft, SwitchCamera } from "lucide-react";
+import { Plus, Edit, Trash2, BookOpen, Grid3X3, Eye, Folder, ArrowLeft, SwitchCamera, Sparkles } from "lucide-react";
 import DetailedFlashcardView from "../components/DetailedFlashcardView.jsx";
 import FlashcardForm from "../components/FlashcardForm.jsx";
 import CategoryGrid from "../components/CategoryGrid.jsx";
@@ -18,7 +17,11 @@ const HomePage = () => {
         createFlashcard,
         updateFlashcard,
         deleteFlashcard,
-        setCategoryFilter
+        setCategoryFilter,
+        getExamplesFromCard,    // ДОДАНО: нова функція з store
+        getFirstExample,        // ДОДАНО: нова функція з store
+        hasExamples,           // ДОДАНО: нова функція з store
+        getExamplesCount       // ДОДАНО: нова функція з store
     } = useFlashcardStore();
 
     const {
@@ -209,6 +212,40 @@ const HomePage = () => {
         return selectedCategoryData._id;
     };
 
+    // НОВА ФУНКЦІЯ: рендеринг інформації про приклади в grid режимі
+    const renderExamplesInfo = (card) => {
+        const examples = getExamplesFromCard(card);
+
+        if (examples.length === 0) {
+            return null;
+        }
+
+        const firstExample = examples[0];
+        const examplesCount = examples.length;
+
+        return (
+            <div className="mt-2">
+                <div className="text-amber-700 text-xs font-medium mb-1 flex items-center">
+                    {examplesCount > 1 ? (
+                        <span className="flex items-center space-x-1">
+                            <span>Приклади ({examplesCount})</span>
+                            {examplesCount > 1 && (
+                                <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-xs">
+                                    +{examplesCount - 1}
+                                </span>
+                            )}
+                        </span>
+                    ) : (
+                        <span>Приклад</span>
+                    )}
+                </div>
+                <p className="text-gray-600 text-sm italic line-clamp-2">
+                    "{firstExample}"
+                </p>
+            </div>
+        );
+    };
+
     if (isLoadingCategories && currentView === "categories") {
         return (
             <div className="ml-64 min-h-screen bg-gray-50 flex items-center justify-center">
@@ -383,6 +420,12 @@ const HomePage = () => {
                                                             <h3 className="text-lg font-bold text-gray-900 break-words">
                                                                 {card.text}
                                                             </h3>
+                                                            {/* AI Generated Badge */}
+                                                            {card.isAIGenerated && (
+                                                                <div className="ml-auto">
+                                                                    <Sparkles className="w-4 h-4 text-purple-500" title="Згенеровано ШІ" />
+                                                                </div>
+                                                            )}
                                                         </div>
 
                                                         {card.transcription && (
@@ -410,6 +453,9 @@ const HomePage = () => {
                                                                 </p>
                                                             )
                                                         )}
+
+                                                        {/* ОНОВЛЕНО: Відображення прикладів використовуючи нові функції */}
+                                                        {renderExamplesInfo(card)}
                                                     </div>
 
                                                     <div className="flex justify-between items-center">

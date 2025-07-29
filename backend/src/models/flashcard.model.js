@@ -32,6 +32,12 @@ const flashcardSchema = new mongoose.Schema(
             default: "",
             trim: true,
         },
+        // ОНОВЛЕНО: example тепер масив прикладів
+        examples: [{
+            type: String,
+            trim: true,
+        }],
+        // Залишаємо старе поле для зворотної сумісності, але deprecated
         example: {
             type: String,
             default: "",
@@ -61,6 +67,27 @@ const flashcardSchema = new mongoose.Schema(
         timestamps: true,
     }
 );
+
+// Middleware для міграції старих даних при зчитуванні
+flashcardSchema.post('find', function(docs) {
+    if (docs && Array.isArray(docs)) {
+        docs.forEach(doc => {
+            // Якщо є старий example і немає examples, переносимо
+            if (doc.example && (!doc.examples || doc.examples.length === 0)) {
+                doc.examples = [doc.example];
+            }
+        });
+    }
+});
+
+flashcardSchema.post('findOne', function(doc) {
+    if (doc) {
+        // Якщо є старий example і немає examples, переносимо
+        if (doc.example && (!doc.examples || doc.examples.length === 0)) {
+            doc.examples = [doc.example];
+        }
+    }
+});
 
 // Index for better performance
 flashcardSchema.index({ userId: 1, categoryId: 1 });

@@ -1,4 +1,4 @@
-// frontend/src/store/useFlashcardStore.js
+// frontend/src/store/useFlashcardStore.js - ОНОВЛЕНА ВЕРСІЯ З ПІДТРИМКОЮ КІЛЬКОХ ПРИКЛАДІВ
 
 import { create } from "zustand";
 import { axiosInstance } from "../lib/axios.js";
@@ -32,7 +32,14 @@ export const useFlashcardStore = create((set, get) => ({
 
   createFlashcard: async (flashcardData) => {
     try {
-      const res = await axiosInstance.post("/flashcards", flashcardData);
+      // ОНОВЛЕНО: обробляємо examples у відправці даних
+      const submitData = {
+        ...flashcardData,
+        // Фільтруємо порожні приклади
+        examples: flashcardData.examples ? flashcardData.examples.filter(ex => ex && ex.trim()) : []
+      };
+
+      const res = await axiosInstance.post("/flashcards", submitData);
 
       // Add to current list if it matches the filter
       const currentFilter = get().currentCategoryFilter;
@@ -60,7 +67,14 @@ export const useFlashcardStore = create((set, get) => ({
 
   updateFlashcard: async (id, flashcardData) => {
     try {
-      const res = await axiosInstance.put(`/flashcards/${id}`, flashcardData);
+      // ОНОВЛЕНО: обробляємо examples у відправці даних
+      const submitData = {
+        ...flashcardData,
+        // Фільтруємо порожні приклади
+        examples: flashcardData.examples ? flashcardData.examples.filter(ex => ex && ex.trim()) : []
+      };
+
+      const res = await axiosInstance.put(`/flashcards/${id}`, submitData);
       const updatedFlashcard = res.data;
 
       // Update in current list
@@ -186,6 +200,62 @@ export const useFlashcardStore = create((set, get) => ({
     }
   },
 
+  // НОВА ФУНКЦІЯ: Регенерація прикладів для існуючої картки
+  regenerateExamples: async (cardId) => {
+    try {
+      const response = await axiosInstance.post(`/openai/regenerate-examples/${cardId}`);
+
+      if (response.data.success) {
+        const updatedCard = response.data.flashcard;
+
+        // Оновлюємо картку в локальному стейті
+        set({
+          flashcards: get().flashcards.map((card) =>
+              card._id === cardId ? updatedCard : card
+          ),
+        });
+
+        toast.success("Нові приклади згенеровано!");
+        return updatedCard;
+      } else {
+        throw new Error("Failed to regenerate examples");
+      }
+    } catch (error) {
+      console.error("Error regenerating examples:", error);
+
+      let errorMessage = "Помилка генерації нових прикладів";
+
+      if (error.response?.status === 401) {
+        errorMessage = "API ключ недійсний";
+      } else if (error.response?.status === 402) {
+        errorMessage = "Недостатньо кредитів OpenAI";
+      } else if (error.response?.status === 429) {
+        errorMessage = "Перевищено ліміт запитів OpenAI";
+      } else if (error.response?.status === 404) {
+        errorMessage = "Картку не знайдено";
+      }
+
+      toast.error(errorMessage);
+      throw error;
+    }
+  },
+
+  // НОВА ФУНКЦІЯ: Генерація прикладів для конкретного слова (не пов'язано з карткою)
+  generateExamplesForWord: async (text, englishLevel) => {
+    try {
+      const response = await axiosInstance.post("/openai/generate-flashcard", {
+        text,
+        englishLevel,
+        promptType: "examples"
+      });
+
+      return response.data.result;
+    } catch (error) {
+      console.error("Error generating examples for word:", error);
+      throw error;
+    }
+  },
+
   // Utility functions
   getFlashcardsByCategory: (categoryId) => {
     return get().flashcards.filter(card => {
@@ -198,6 +268,52 @@ export const useFlashcardStore = create((set, get) => ({
 
   getUncategorizedFlashcards: () => {
     return get().flashcards.filter(card => !card.categoryId);
+  },
+
+  // НОВА ФУНКЦІЯ: Отримання прикладів з картки (підтримка старого і нового формату)
+  getExamplesFromCard: (card) => {
+    if (card.examples && Array.isArray(card.examples) && card.examples.length > 0) {
+      return card.examples.filter(ex => ex && ex.trim());
+    } else if (card.example && card.example.trim()) {
+      return [card.example.trim()];
+    }
+    return [];
+  },
+
+  // НОВА ФУНКЦІЯ: Отримання першого приклада для відображення в grid
+  getFirstExample: (card) => {
+    const examples = get().getExamplesFromCard(card);
+    return examples.length > 0 ? examples[0] : null;
+  },
+
+  // НОВА ФУНКЦІЯ: Перевірка чи має картка приклади
+  hasExamples: (card) => {
+    const examples = get().getExamplesFromCard(card);
+    return examples.length > 0;
+  },
+
+  // НОВА ФУНКЦІЯ: Отримання кількості прикладів
+  getExamplesCount: (card) => {
+    const examples = get().getExamplesFromCard(card);
+    return examples.length;
+  },
+
+  // НОВА ФУНКЦІЯ: Міграція старого формату до нового (для клієнтської частини)
+  migrateCardExamples: (card) => {
+    if (card.example && (!card.examples || card.examples.length === 0)) {
+      return {
+        ...card,
+        examples: [card.example]
+      };
+    }
+    return card;
+  },
+
+  // НОВА ФУНКЦІЯ: Масова міграція карток
+  migrateAllCards: () => {
+    const currentCards = get().flashcards;
+    const migratedCards = currentCards.map(card => get().migrateCardExamples(card));
+    set({ flashcards: migratedCards });
   },
 }));
 

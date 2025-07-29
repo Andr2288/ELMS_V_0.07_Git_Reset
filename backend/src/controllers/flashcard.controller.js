@@ -5,7 +5,7 @@ import Category from "../models/category.model.js";
 
 const createFlashcard = async (req, res) => {
   try {
-    const { text, transcription, translation, shortDescription, explanation, example, notes, isAIGenerated, categoryId } = req.body;
+    const { text, transcription, translation, shortDescription, explanation, example, examples, notes, isAIGenerated, categoryId } = req.body;
     const userId = req.user._id;
 
     if (!text) {
@@ -20,13 +20,23 @@ const createFlashcard = async (req, res) => {
       }
     }
 
+    // Обробляємо examples - підтримуємо як новий формат (масив), так і старий (рядок)
+    let processedExamples = [];
+    if (examples && Array.isArray(examples)) {
+      processedExamples = examples.filter(ex => ex && ex.trim()).map(ex => ex.trim());
+    } else if (example && example.trim()) {
+      // Для зворотної сумісності зі старим форматом
+      processedExamples = [example.trim()];
+    }
+
     const newFlashcard = new Flashcard({
       text: text.trim(),
       transcription: transcription?.trim() || "",
       translation: translation?.trim() || "",
       shortDescription: shortDescription?.trim() || "",
       explanation: explanation?.trim() || "",
-      example: example?.trim() || "",
+      examples: processedExamples,
+      example: example?.trim() || "", // Залишаємо для зворотної сумісності
       notes: notes?.trim() || "",
       isAIGenerated: isAIGenerated || false,
       categoryId: categoryId || null,
@@ -75,7 +85,7 @@ const getFlashcards = async (req, res) => {
 const updateFlashcard = async (req, res) => {
   try {
     const { id } = req.params;
-    const { text, transcription, translation, shortDescription, explanation, example, notes, isAIGenerated, categoryId } = req.body;
+    const { text, transcription, translation, shortDescription, explanation, example, examples, notes, isAIGenerated, categoryId } = req.body;
     const userId = req.user._id;
 
     if (!text) {
@@ -96,12 +106,22 @@ const updateFlashcard = async (req, res) => {
       }
     }
 
+    // Обробляємо examples - підтримуємо як новий формат (масив), так і старий (рядок)
+    let processedExamples = [];
+    if (examples && Array.isArray(examples)) {
+      processedExamples = examples.filter(ex => ex && ex.trim()).map(ex => ex.trim());
+    } else if (example && example.trim()) {
+      // Для зворотної сумісності зі старим форматом
+      processedExamples = [example.trim()];
+    }
+
     flashcard.text = text.trim();
     flashcard.transcription = transcription?.trim() || "";
     flashcard.translation = translation?.trim() || "";
     flashcard.shortDescription = shortDescription?.trim() || "";
     flashcard.explanation = explanation?.trim() || "";
-    flashcard.example = example?.trim() || "";
+    flashcard.examples = processedExamples;
+    flashcard.example = example?.trim() || ""; // Залишаємо для зворотної сумісності
     flashcard.notes = notes?.trim() || "";
     if (isAIGenerated !== undefined) flashcard.isAIGenerated = isAIGenerated;
     flashcard.categoryId = categoryId || null;

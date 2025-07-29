@@ -2,6 +2,7 @@
 
 import OpenAI from "openai";
 import UserSettings from "../models/userSettings.model.js";
+import Flashcard from "../models/flashcard.model.js";
 
 const generateFlashcardContent = async (req, res) => {
     try {
@@ -75,6 +76,9 @@ const generateFlashcardContent = async (req, res) => {
             case "example":
                 prompt = `Create a sentence. English level: ${englishLevel}. Word to use: ${text}`;
                 break;
+            case "examples": // НОВИЙ ТИП: генерація 3 прикладів
+                prompt = `Create 3 different example sentences using the word/phrase: "${text}". English level: ${englishLevel}. Each sentence should show different contexts or meanings. Return as a JSON array of strings.`;
+                break;
             case "transcription":
                 prompt = `Provide me with the transcription for: ${text}. Resources: 1) Oxford Learner's Dictionaries. Format for output: Transcription for 'University' (Oxford Learner's Dictionaries):UK: [ˌjuːnɪˈvɜːsəti]; US: [ˌjuːnɪˈvɜːrsəti];`;
                 break;
@@ -96,7 +100,7 @@ const generateFlashcardContent = async (req, res) => {
                   "translation": "Some variants of Ukrainian translation",
                   "shortDescription": "Very brief 2-3 sentences description (under 150 characters), clear and concise",
                   "explanation": "A detailed definition/explanation of meaning and usage (can be longer and more comprehensive)",
-                  "example": "Example sentence using the word",
+                  "examples": ["Example sentence 1 using the word", "Example sentence 2 showing different context", "Example sentence 3 with another usage"],
                   "notes": ""
                 }
                 
@@ -105,7 +109,7 @@ const generateFlashcardContent = async (req, res) => {
                 - Clear explanation (in English) appropriate for ${englishLevel} English level
                 - Short description that's concise but informative for quick reference
                 - Detailed explanation for comprehensive understanding
-                - Natural example sentence
+                - THREE natural example sentences showing different contexts
                 - Ukrainian translation`;
                 break;
         }
@@ -120,7 +124,7 @@ const generateFlashcardContent = async (req, res) => {
                 { role: "user", content: prompt }
             ],
             temperature: 0.7,
-            max_tokens: 600, // Increased for more content
+            max_tokens: 800, // Збільшено для 3 прикладів
         });
 
         const aiResponse = chatCompletion.choices[0].message.content;
@@ -139,6 +143,15 @@ const generateFlashcardContent = async (req, res) => {
 
                 // Ensure the text field matches the original input
                 parsedResponse.text = text;
+
+                // Забезпечуємо, що examples є масивом
+                if (typeof parsedResponse.examples === 'string') {
+                    parsedResponse.examples = [parsedResponse.examples];
+                }
+                if (!Array.isArray(parsedResponse.examples)) {
+                    parsedResponse.examples = [];
+                }
+
             } catch (error) {
                 console.log("Error parsing AI response as JSON:", error);
                 return res.status(200).json({
@@ -148,12 +161,36 @@ const generateFlashcardContent = async (req, res) => {
                     apiKeyInfo
                 });
             }
+        } else if (promptType === "examples") {
+            // Для генерації прикладів парсимо як JSON array
+            try {
+                const jsonMatch = aiResponse.match(/\[[\s\S]*?\]/) || aiResponse.match(/```json\n([\s\S]*?)\n```/);
+                if (jsonMatch) {
+                    const jsonStr = jsonMatch[0].replace(/```json|```/g, '');
+                    parsedResponse = JSON.parse(jsonStr);
+                } else {
+                    // Fallback - розділяємо по лініям
+                    parsedResponse = aiResponse.split('\n')
+                        .filter(line => line.trim())
+                        .map(line => line.replace(/^\d+\.\s*/, '').replace(/^["\-]\s*/, '').replace(/["]*$/, '').trim())
+                        .filter(line => line.length > 0)
+                        .slice(0, 3); // Беремо максимум 3
+                }
+            } catch (error) {
+                console.log("Error parsing examples response:", error);
+                // Fallback - розділяємо по лініям
+                parsedResponse = aiResponse.split('\n')
+                    .filter(line => line.trim())
+                    .map(line => line.replace(/^\d+\.\s*/, '').replace(/^["\-]\s*/, '').replace(/["]*$/, '').trim())
+                    .filter(line => line.length > 0)
+                    .slice(0, 3);
+            }
         }
 
         return res.status(200).json({
             result: parsedResponse,
             raw: aiResponse,
-            parsed: promptType === "completeFlashcard" || promptType === undefined,
+            parsed: promptType === "completeFlashcard" || promptType === undefined || promptType === "examples",
             apiKeyInfo,
             modelUsed: modelToUse
         });
@@ -191,6 +228,133 @@ const generateFlashcardContent = async (req, res) => {
     }
 };
 
+// НОВИЙ ENDPOINT: Регенерація прикладів для існуючої картки
+const regenerateExamples = async (req, res) => {
+    try {
+        const { id } = req.params; // ID картки
+        const userId = req.user._id;
+
+        // Знаходимо картку
+        const flashcard = await Flashcard.findOne({ _id: id, userId });
+        if (!flashcard) {
+            return res.status(404).json({ message: "Flashcard not found" });
+        }
+
+        // Отримуємо налаштування користувача
+        let userSettings = await UserSettings.findOne({ userId });
+        if (!userSettings) {
+            return res.status(400).json({ message: "User settings not found" });
+        }
+
+        const effectiveApiKey = userSettings.getEffectiveApiKey();
+        const apiKeyInfo = userSettings.getApiKeyInfo();
+
+        if (!effectiveApiKey) {
+            return res.status(500).json({
+                message: "No OpenAI API key available",
+                details: "Please configure an API key in Settings",
+                apiKeyInfo
+            });
+        }
+
+        const englishLevel = userSettings.generalSettings?.defaultEnglishLevel || "B1";
+        const modelToUse = userSettings.aiSettings?.chatgptModel || "gpt-4.1-mini";
+
+        // Створюємо OpenAI клієнт
+        const openai = new OpenAI({ apiKey: effectiveApiKey });
+
+        // Генеруємо нові приклади
+        const prompt = `Create 3 NEW and DIFFERENT example sentences using the word/phrase: "${flashcard.text}". 
+        English level: ${englishLevel}. 
+        Each sentence should show different contexts or meanings than previous examples.
+        Make them creative and varied.
+        Return as a JSON array of strings.`;
+
+        console.log(`Regenerating examples for: "${flashcard.text}" using ${apiKeyInfo.effectiveSource} API key`);
+
+        const chatCompletion = await openai.chat.completions.create({
+            model: modelToUse,
+            messages: [
+                { role: "system", content: "You are a helpful assistant for language learning. Create diverse and creative example sentences." },
+                { role: "user", content: prompt }
+            ],
+            temperature: 0.8, // Трохи більше творчості для різноманітних прикладів
+            max_tokens: 400,
+        });
+
+        const aiResponse = chatCompletion.choices[0].message.content;
+        let newExamples = [];
+
+        try {
+            // Парсимо відповідь
+            const jsonMatch = aiResponse.match(/\[[\s\S]*?\]/) || aiResponse.match(/```json\n([\s\S]*?)\n```/);
+            if (jsonMatch) {
+                const jsonStr = jsonMatch[0].replace(/```json|```/g, '');
+                newExamples = JSON.parse(jsonStr);
+            } else {
+                // Fallback - розділяємо по лініям
+                newExamples = aiResponse.split('\n')
+                    .filter(line => line.trim())
+                    .map(line => line.replace(/^\d+\.\s*/, '').replace(/^["\-]\s*/, '').replace(/["]*$/, '').trim())
+                    .filter(line => line.length > 0)
+                    .slice(0, 3);
+            }
+        } catch (error) {
+            console.log("Error parsing examples response:", error);
+            // Fallback parsing
+            newExamples = aiResponse.split('\n')
+                .filter(line => line.trim())
+                .map(line => line.replace(/^\d+\.\s*/, '').replace(/^["\-]\s*/, '').replace(/["]*$/, '').trim())
+                .filter(line => line.length > 0)
+                .slice(0, 3);
+        }
+
+        // Оновлюємо картку з новими прикладами
+        flashcard.examples = newExamples;
+        await flashcard.save();
+
+        // Повертаємо оновлену картку
+        await flashcard.populate('categoryId', 'name color');
+
+        return res.status(200).json({
+            success: true,
+            flashcard: flashcard,
+            newExamples: newExamples,
+            message: "Examples regenerated successfully",
+            apiKeyInfo,
+            modelUsed: modelToUse
+        });
+
+    } catch (error) {
+        console.log("Error in regenerateExamples controller:", error);
+
+        let errorResponse = {
+            message: "Error regenerating examples",
+            details: "Error occurred while generating new examples"
+        };
+
+        if (error.status === 401) {
+            errorResponse = {
+                message: "Invalid OpenAI API key",
+                details: "API key may be expired, invalid, or have insufficient permissions"
+            };
+        } else if (error.status === 429) {
+            errorResponse = {
+                message: "OpenAI API rate limit exceeded",
+                details: "Too many requests to OpenAI API"
+            };
+        } else if (error.status === 402 || error.message?.includes('quota')) {
+            errorResponse = {
+                message: "OpenAI API quota exceeded",
+                details: "Insufficient credits or billing issue"
+            };
+        }
+
+        return res.status(error.status || 500).json(errorResponse);
+    }
+};
+
 export default {
-    generateFlashcardContent
+    generateFlashcardContent,
+    regenerateExamples
 };
