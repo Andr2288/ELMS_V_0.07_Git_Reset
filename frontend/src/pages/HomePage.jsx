@@ -378,7 +378,7 @@ const HomePage = () => {
                                                         <div className="flex items-center space-x-2 mb-1">
                                                             <div
                                                                 className="w-3 h-3 rounded-full"
-                                                                style={{ backgroundColor: card.categoryId.color }}
+                                                                style={{ backgroundColor: card.categoryId?.color || "#6B7280" }}
                                                             ></div>
                                                             <h3 className="text-lg font-bold text-gray-900 break-words">
                                                                 {card.text}
