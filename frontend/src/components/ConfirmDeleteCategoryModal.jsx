@@ -1,5 +1,6 @@
 // frontend/src/components/ConfirmDeleteCategoryModal.jsx
 
+import { useEffect } from "react";
 import { AlertTriangle, X, Folder, Trash2 } from "lucide-react";
 
 const ConfirmDeleteCategoryModal = ({
@@ -9,6 +10,39 @@ const ConfirmDeleteCategoryModal = ({
                                         category,
                                         isDeleting
                                     }) => {
+    // Обробка хоткізів для модального вікна
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleKeyPress = (event) => {
+            // Перевіряємо, чи не заблоковано дії через isDeleting
+            if (isDeleting) return;
+
+            // ESC для скасування
+            if (event.key === "Escape") {
+                event.preventDefault();
+                event.stopPropagation();
+                onClose();
+                return;
+            }
+
+            // Enter для підтвердження
+            if (event.key === "Enter") {
+                event.preventDefault();
+                event.stopPropagation();
+                onConfirm();
+                return;
+            }
+        };
+
+        // Додаємо обробник подій
+        window.addEventListener("keydown", handleKeyPress, { passive: false });
+
+        return () => {
+            window.removeEventListener("keydown", handleKeyPress);
+        };
+    }, [isOpen, isDeleting, onClose, onConfirm]);
+
     if (!isOpen || !category) return null;
 
     const handleConfirm = () => {
@@ -35,6 +69,7 @@ const ConfirmDeleteCategoryModal = ({
                             onClick={onClose}
                             disabled={isDeleting}
                             className="text-gray-400 hover:text-gray-600 p-2 disabled:cursor-not-allowed"
+                            title="Скасувати (Esc)"
                         >
                             <X className="w-5 h-5" />
                         </button>
@@ -95,10 +130,25 @@ const ConfirmDeleteCategoryModal = ({
                     </div>
 
                     {/* Final warning */}
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
                         <p className="text-yellow-800 text-sm">
                             <strong>Цю дію неможливо скасувати.</strong> Всі дані будуть втрачені назавжди.
                         </p>
+                    </div>
+
+                    {/* Keyboard shortcuts hint */}
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <div className="flex items-center justify-center space-x-4 text-sm text-blue-700">
+                            <div className="flex items-center space-x-1">
+                                <kbd className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 border border-blue-200 rounded">Esc</kbd>
+                                <span>скасувати</span>
+                            </div>
+                            <span>•</span>
+                            <div className="flex items-center space-x-1">
+                                <kbd className="px-2 py-1 text-xs font-semibold text-blue-800 bg-blue-100 border border-blue-200 rounded">Enter</kbd>
+                                <span>підтвердити</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -109,6 +159,7 @@ const ConfirmDeleteCategoryModal = ({
                         onClick={onClose}
                         disabled={isDeleting}
                         className="flex-1 px-4 py-3 bg-gray-300 hover:bg-gray-400 disabled:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors disabled:cursor-not-allowed"
+                        title="Скасувати (Esc)"
                     >
                         Скасувати
                     </button>
@@ -117,6 +168,7 @@ const ConfirmDeleteCategoryModal = ({
                         onClick={handleConfirm}
                         disabled={isDeleting}
                         className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 disabled:cursor-not-allowed"
+                        title="Підтвердити видалення (Enter)"
                     >
                         {isDeleting ? (
                             <>

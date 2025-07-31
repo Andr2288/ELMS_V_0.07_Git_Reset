@@ -215,7 +215,6 @@ export const useFlashcardStore = create((set, get) => ({
           ),
         });
 
-        toast.success("Нові приклади згенеровано!");
         return updatedCard;
       } else {
         throw new Error("Failed to regenerate examples");

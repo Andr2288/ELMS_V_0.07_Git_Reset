@@ -346,6 +346,9 @@ const DetailedFlashcardView = ({ flashcards, onEdit }) => {
 
       if (isInputField) return;
 
+      const currentCard = updatedFlashcards[currentIndex];
+      if (!currentCard) return;
+
       // Обробляємо клавіші
       if (event.key === "ArrowLeft") {
         event.preventDefault();
@@ -365,7 +368,6 @@ const DetailedFlashcardView = ({ flashcards, onEdit }) => {
         event.preventDefault();
 
         // ВИПРАВЛЕННЯ: Додаткові перевірки для озвучки
-        const currentCard = updatedFlashcards[currentIndex];
         if (currentCard?.text && !isPlayingRef.current && !isChanging) {
           console.log("Keyboard TTS triggered for:", currentCard.text);
           speakText(currentCard.text);
@@ -384,10 +386,24 @@ const DetailedFlashcardView = ({ flashcards, onEdit }) => {
         event.preventDefault();
 
         if (isFlipped && !isRegeneratingExamples && !isChanging) {
-          const currentCard = updatedFlashcards[currentIndex];
           if (currentCard && (currentCard.examples?.length > 0 || currentCard.example)) {
             regenerateExamples();
           }
+        }
+      } else if (
+          event.key === "e" || event.key === "E" ||
+          event.key === "у" || event.key === "У" // українська розкладка
+      ) {
+        // НОВА КЛАВІША: E для редагування картки
+        event.preventDefault();
+        if (!isChanging) {
+          onEdit(currentCard);
+        }
+      } else if (event.key === "Delete") {
+        // НОВА КЛАВІША: Del для видалення картки
+        event.preventDefault();
+        if (!isChanging) {
+          handleDeleteClick(currentCard);
         }
       }
     };
@@ -455,7 +471,7 @@ const DetailedFlashcardView = ({ flashcards, onEdit }) => {
                 }}
                 disabled={isChanging}
                 className="bg-white/90 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed text-blue-600 p-2 rounded-full shadow-sm transition-colors"
-                title="Редагувати"
+                title="Редагувати (E)"
             >
               <Edit className="w-5 h-5" />
             </button>
@@ -465,7 +481,7 @@ const DetailedFlashcardView = ({ flashcards, onEdit }) => {
                 }}
                 disabled={isChanging}
                 className="bg-white/90 hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed text-red-600 p-2 rounded-full shadow-sm transition-colors"
-                title="Видалити"
+                title="Видалити (Del)"
             >
               <Trash2 className="w-5 h-5" />
             </button>
@@ -537,6 +553,19 @@ const DetailedFlashcardView = ({ flashcards, onEdit }) => {
                       <p className="text-gray-500 text-base">
                         Натисніть Пробіл / Enter, щоб побачити переклад
                       </p>
+
+                      {/* Keyboard shortcuts hint */}
+                      <div className="flex items-center justify-center space-x-4 text-xs text-gray-500 mt-2">
+                        <div className="flex items-center space-x-1">
+                          <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-xs">E</kbd>
+                          <span>редагувати</span>
+                        </div>
+                        <span>•</span>
+                        <div className="flex items-center space-x-1">
+                          <kbd className="px-1.5 py-0.5 bg-gray-100 rounded text-xs">Del</kbd>
+                          <span>видалити</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -603,18 +632,18 @@ const DetailedFlashcardView = ({ flashcards, onEdit }) => {
                             </div>
                         )}
 
-                        {/* ОНОВЛЕНО: Examples - тепер відображаємо кілька прикладів з кнопкою регенерації */}
+                        {/* ОНОВЛЕНО: Examples - тепер з зеленим кольором замість жовтого */}
                         {examples.length > 0 && (
                             <div>
                               <div className="flex items-center justify-between mb-3">
-                                <h4 className="text-sm font-semibold text-amber-700 uppercase tracking-wide">
+                                <h4 className="text-sm font-semibold text-green-700 uppercase tracking-wide">
                                   Приклади використання
                                 </h4>
                                 {/* Кнопка регенерації прикладів */}
                                 <button
                                     onClick={regenerateExamples}
                                     disabled={isRegeneratingExamples || isChanging}
-                                    className="flex items-center space-x-1 text-xs bg-amber-100 hover:bg-amber-200 disabled:bg-gray-100 text-amber-700 disabled:text-gray-500 px-2 py-1 rounded transition-colors"
+                                    className="flex items-center space-x-1 text-xs bg-green-100 hover:bg-green-200 disabled:bg-gray-100 text-green-700 disabled:text-gray-500 px-2 py-1 rounded transition-colors"
                                     title="Згенерувати інші приклади (або натисніть R)"
                                 >
                                   {isRegeneratingExamples ? (
@@ -628,7 +657,7 @@ const DetailedFlashcardView = ({ flashcards, onEdit }) => {
 
                               <div className="space-y-3">
                                 {examples.map((example, index) => (
-                                    <div key={index} className="bg-amber-50/80 rounded-lg p-4 border-l-4 border-amber-300">
+                                    <div key={index} className="bg-green-50/80 rounded-lg p-4 border-l-4 border-green-300">
                                       <p className="text-gray-800 italic leading-relaxed text-lg">
                                         "{example}"
                                       </p>
@@ -664,6 +693,10 @@ const DetailedFlashcardView = ({ flashcards, onEdit }) => {
                           повернутися
                           <kbd className="px-2 py-1 bg-white/60 rounded text-xs mx-2">V</kbd>
                           озвучити
+                          <kbd className="px-2 py-1 bg-white/60 rounded text-xs mx-2">E</kbd>
+                          редагувати
+                          <kbd className="px-2 py-1 bg-white/60 rounded text-xs mx-2">Del</kbd>
+                          видалити
                           {examples.length > 0 && (
                               <>
                                 <kbd className="px-2 py-1 bg-white/60 rounded text-xs mx-2">R</kbd>
