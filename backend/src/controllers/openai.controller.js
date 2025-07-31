@@ -71,7 +71,7 @@ const generateFlashcardContent = async (req, res) => {
                 prompt = `English level you must to use in your output: ${englishLevel}. A detailed definition/explanation of meaning and usage (can be longer and more comprehensive) for: ${text}. Format example for output: A valley is a long, low area of land between hills or mountains. It is often formed by rivers or glaciers and can be wide or narrow. Valleys are places where people can live, grow crops, or travel through because they are lower and sometimes flatter than the surrounding land.`;
                 break;
             case "shortDescription":
-                prompt = `English level you must to use in your output: ${englishLevel}. Write a very short description (2-3 sentences max, under 150 characters) for English word/phrase: "${text}". The description should be concise, clear and appropriate for ${englishLevel} level learners.`;
+                prompt = `English level you must to use in your output: ${englishLevel}. Write a very short description (1-2 sentences max, under 100 characters) for English word/phrase: "${text}". The description should be concise, clear and appropriate for ${englishLevel} level learners.`;
                 break;
             case "example":
                 prompt = `Create a sentence. English level you must to use in your output: ${englishLevel}. Word to use: ${text}`;
@@ -80,10 +80,10 @@ const generateFlashcardContent = async (req, res) => {
                 prompt = `Create 3 different example sentences using the word/phrase: "${text}". English level you must to use in your output: ${englishLevel}. Each sentence should show different contexts or meanings. Return as a JSON array of strings.`;
                 break;
             case "transcription":
-                prompt = `Provide me with the transcription for: ${text}. Resources: Oxford Learner's Dictionaries. Format for output: UK: [ˌjuːnɪˈvɜːsəti]; US: [ˌjuːnɪˈvɜːrsəti];`;
+                prompt = `You are integrated in English LMS. Provide me with the transcription for: ${text}. Resources: Oxford Learner's Dictionaries. String format example for output: UK: [ˌjuːnɪˈvɜːsəti]; US: [ˌjuːnɪˈvɜːrsəti];`;
                 break;
             case "translateToUkrainian":
-                prompt = `You are integrated in English LMS. Provide some variants of translation to Ukrainian for: ${text}. Format example for output of the word "Look": "Виглядати; дивитися; вигляд; зовнішність`;
+                prompt = `Translate to Ukrainian. Provide several translation variants for: "${text}". Output only in this format: "Виглядати; дивитися; вигляд; зовнішність". No extra text. Only the string.`;
                 break;
             case "translateFromUkrainian":
                 prompt = `Provide translation from Ukrainian to English for: ${text}`;
@@ -97,8 +97,8 @@ const generateFlashcardContent = async (req, res) => {
                 {
                   "text": "${text}",
                   "transcription": "Resources: Oxford Learner's Dictionaries. Format for output: UK: [ˌjuːnɪˈvɜːsəti] US: [ˌjuːnɪˈvɜːrsəti];",
-                  "translation": "Some variants of translation to Ukrainian. Format example for output of the word "Look": "Виглядати; дивитися; вигляд; зовнішність",
-                  "shortDescription": "A very short description (2-3 sentences max, under 150 characters). The description should be concise and clear",
+                  "translation": " Several possible Ukrainian translation variants (1-2 or more) for: "${text}". Output only in the format like: "Виглядати; дивитися; вигляд; зовнішність". No extra text. Only the string.",
+                  "shortDescription": "A very short description (1-2 sentences max, under 100 characters). The description should be concise and clear",
                   "explanation": "A detailed definition/explanation of meaning and usage (can be longer and more comprehensive). Format example for output: A valley is a long, low area of land between hills or mountains. It is often formed by rivers or glaciers and can be wide or narrow. Valleys are places where people can live, grow crops, or travel through because they are lower and sometimes flatter than the surrounding land.",
                   "examples": ["Example sentence 1 using the word", "Example sentence 2 showing different context", "Example sentence 3 with another usage"],
                   "notes": ""

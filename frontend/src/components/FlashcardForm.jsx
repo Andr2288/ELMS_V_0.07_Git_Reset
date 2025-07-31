@@ -274,9 +274,6 @@ const FlashcardForm = ({
           isAIGenerated: true
         }));
       }
-
-      toast.success(`${getFieldName(fieldType)} згенеровано!`);
-
     } catch (error) {
       console.error(`Error generating ${fieldType}:`, error);
 
@@ -359,7 +356,6 @@ const FlashcardForm = ({
           isAIGenerated: true
         }));
 
-        toast.success("Контент успішно згенеровано!");
       } else {
         console.log("Raw AI response:", response.data.raw);
 
@@ -435,7 +431,6 @@ const FlashcardForm = ({
         notes: "",
         isAIGenerated: false
       }));
-      toast.success("Контент скинуто");
     }
   };
 
@@ -460,6 +455,11 @@ const FlashcardForm = ({
 
     return true;
   };
+
+  function capitalizeFirstLetter(str) {
+    if (!str) return "";
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
 
   // Quick create flashcard with AI (Ctrl + Space)
   const quickCreateFlashcard = async () => {
@@ -527,6 +527,12 @@ const FlashcardForm = ({
       } else if (aiContent.example) {
         examples = [aiContent.example];
       }
+
+      // Capitalize fields before saving
+      aiContent.translation = capitalizeFirstLetter(aiContent.translation);
+      aiContent.shortDescription = capitalizeFirstLetter(aiContent.shortDescription);
+      aiContent.explanation = capitalizeFirstLetter(aiContent.explanation);
+      aiContent.notes = capitalizeFirstLetter(aiContent.notes);
 
       // Prepare data for submission
       const submitData = {

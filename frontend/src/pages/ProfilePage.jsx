@@ -308,7 +308,7 @@ const ProfilePage = () => {
                                         <h2 className="text-2xl font-semibold text-gray-900">{authUser.fullName}</h2>
                                     )}
                                     <p className="text-gray-600 text-sm mt-1">{authUser.email}</p>
-                                    <p className="text-gray-500 text-xs mt-1">
+                                     <p className="text-gray-500 text-xs mt-1">
                                         З нами з {new Date(authUser.createdAt || Date.now()).toLocaleDateString('uk-UA')}
                                     </p>
                                 </div>

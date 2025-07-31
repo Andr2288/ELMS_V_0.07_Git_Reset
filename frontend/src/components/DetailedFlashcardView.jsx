@@ -496,7 +496,7 @@ const DetailedFlashcardView = ({ flashcards, onEdit }) => {
 
                       {currentCard.transcription && (
                           <p className="text-base text-gray-600 font-mono mb-2">
-                            [{currentCard.transcription}]
+                            {currentCard.transcription}
                           </p>
                       )}
 
