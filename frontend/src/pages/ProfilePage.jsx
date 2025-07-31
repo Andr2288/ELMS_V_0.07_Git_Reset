@@ -2,14 +2,15 @@
 
 import { useState, useEffect } from "react";
 import {
-    User, Edit3, Calendar, TrendingUp, BarChart3, Sparkles,
-    BookOpen, Folder, Trophy, Target, Activity, Clock,
-    Camera, Save, X, Zap, Brain, Award, Star
+    User, Edit3, TrendingUp, BarChart3, Sparkles,
+    BookOpen, Folder, Trophy, Target, Activity,
+    Brain, Award, Star
 } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore.js";
 import { useFlashcardStore } from "../store/useFlashcardStore.js";
 import { useCategoryStore } from "../store/useCategoryStore.js";
 import { useUserSettingsStore } from "../store/useUserSettingsStore.js";
+import ProfileEditModal from "../components/ProfileEditModal.jsx";
 import toast from "react-hot-toast";
 
 const ProfilePage = () => {
@@ -18,11 +19,8 @@ const ProfilePage = () => {
     const { categories, getCategories } = useCategoryStore();
     const { settings, loadSettings } = useUserSettingsStore();
 
-    const [isEditing, setIsEditing] = useState(false);
-    const [editData, setEditData] = useState({
-        fullName: "",
-        profilePic: ""
-    });
+    // Modal state
+    const [showEditModal, setShowEditModal] = useState(false);
     const [statsLoading, setStatsLoading] = useState(true);
     const [stats, setStats] = useState(null);
 
@@ -30,16 +28,6 @@ const ProfilePage = () => {
     useEffect(() => {
         loadAllData();
     }, []);
-
-    // Update edit data when authUser changes
-    useEffect(() => {
-        if (authUser) {
-            setEditData({
-                fullName: authUser.fullName || "",
-                profilePic: authUser.profilePic || ""
-            });
-        }
-    }, [authUser]);
 
     const loadAllData = async () => {
         setStatsLoading(true);
@@ -131,27 +119,10 @@ const ProfilePage = () => {
             };
         }).reverse();
 
-        // Monthly activity (last 6 months)
-        const monthlyActivity = Array.from({ length: 6 }, (_, i) => {
-            const date = new Date();
-            date.setMonth(date.getMonth() - i);
-            const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
-            const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
 
-            const monthCards = flashcards.filter(card => {
-                const cardDate = new Date(card.createdAt);
-                return cardDate >= monthStart && cardDate <= monthEnd;
-            }).length;
-
-            return {
-                month: date.toLocaleDateString('uk-UA', { month: 'short' }),
-                year: date.getFullYear(),
-                count: monthCards
-            };
-        }).reverse();
 
         // Learning streaks and achievements
-        const achievements = calculateAchievements(totalCards, aiGeneratedCards, categoryStats, cardsThisWeek);
+        const achievements = calculateAchievements(totalCards, aiGeneratedCards, categoryStats, cardsThisWeek, flashcards);
 
         setStats({
             totalCards,
@@ -168,75 +139,164 @@ const ProfilePage = () => {
         });
     };
 
-    const calculateAchievements = (totalCards, aiCards, categoryStats, weekCards) => {
-        const achievements = [];
+    const calculateAchievements = (totalCards, aiCards, categoryStats, weekCards, flashcards) => {
+        // Всі можливі досягнення з групуванням
+        const allAchievements = {
+            creation: {
+                title: "Створення карток",
+                icon: "📚",
+                color: "blue",
+                achievements: [
+                    { id: 'first_card', icon: '🌱', title: 'Перші кроки', description: 'Створіть свою першу картку', threshold: 1, color: 'text-green-600' },
+                    { id: 'getting_started', icon: '🚀', title: 'Початківець', description: '10+ карток створено', threshold: 10, color: 'text-green-600' },
+                    { id: 'steady_learner', icon: '📖', title: 'Постійний учень', description: '50+ карток створено', threshold: 50, color: 'text-blue-600' },
+                    { id: 'scholar', icon: '🎓', title: 'Вчений', description: '100+ карток створено', threshold: 100, color: 'text-blue-600' },
+                    { id: 'expert', icon: '👨‍🏫', title: 'Експерт', description: '500+ карток створено', threshold: 500, color: 'text-purple-600' },
+                    { id: 'master', icon: '👑', title: 'Майстер вивчення', description: '1000+ карток створено', threshold: 1000, color: 'text-yellow-600' },
+                ]
+            },
+            ai: {
+                title: "ШІ асистент",
+                icon: "🤖",
+                color: "purple",
+                achievements: [
+                    { id: 'ai_curious', icon: '🔍', title: 'Цікавий до ШІ', description: 'Використайте ШІ для створення першої картки', threshold: 1, color: 'text-purple-600' },
+                    { id: 'ai_user', icon: '⚡', title: 'Користувач ШІ', description: '10+ карток згенеровано ШІ', threshold: 10, color: 'text-purple-600' },
+                    { id: 'ai_enthusiast', icon: '🧠', title: 'Ентузіаст ШІ', description: '50+ карток згенеровано ШІ', threshold: 50, color: 'text-purple-600' },
+                    { id: 'ai_master', icon: '🤖', title: 'ШІ-майстер', description: '100+ карток згенеровано ШІ', threshold: 100, color: 'text-purple-600' },
+                ]
+            },
+            organization: {
+                title: "Організація",
+                icon: "📁",
+                color: "emerald",
+                achievements: [
+                    { id: 'first_folder', icon: '📂', title: 'Перша папка', description: 'Створіть свою першу папку', threshold: 1, color: 'text-emerald-600' },
+                    { id: 'organizer', icon: '🗂️', title: 'Організатор', description: '5+ папок створено', threshold: 5, color: 'text-emerald-600' },
+                    { id: 'categorizer', icon: '📚', title: 'Категоризатор', description: '10+ папок створено', threshold: 10, color: 'text-emerald-600' },
+                    { id: 'architect', icon: '🏗️', title: 'Архітектор знань', description: '20+ папок створено', threshold: 20, color: 'text-emerald-600' },
+                ]
+            },
+            activity: {
+                title: "Активність",
+                icon: "⚡",
+                color: "orange",
+                achievements: [
+                    { id: 'daily_learner', icon: '☀️', title: 'Щоденний учень', description: '3+ картки за день', threshold: 3, color: 'text-orange-600' },
+                    { id: 'weekly_active', icon: '📅', title: 'Активний тиждень', description: '10+ карток за тиждень', threshold: 10, color: 'text-orange-600' },
+                    { id: 'productive_week', icon: '🔥', title: 'Продуктивний тиждень', description: '20+ карток за тиждень', threshold: 20, color: 'text-orange-600' },
+                    { id: 'super_active', icon: '💪', title: 'Супер активний', description: '50+ карток за тиждень', threshold: 50, color: 'text-orange-600' },
+                    { id: 'month_champion', icon: '🏆', title: 'Чемпіон місяця', description: '100+ карток за місяць', threshold: 100, color: 'text-orange-600' },
+                ]
+            },
+            special: {
+                title: "Спеціальні",
+                icon: "⭐",
+                color: "pink",
+                achievements: [
+                    { id: 'balanced', icon: '⚖️', title: 'Збалансований', description: '50% карток створено з ШІ, 50% вручну', threshold: 'balanced', color: 'text-pink-600' },
+                    { id: 'completionist', icon: '✅', title: 'Завершувач', description: 'Всі картки мають переклад і приклади', threshold: 'complete', color: 'text-pink-600' },
+                    { id: 'linguist', icon: '🌍', title: 'Лінгвіст', description: 'Картки з 3+ різних мов', threshold: 'multilingual', color: 'text-pink-600' },
+                ]
+            }
+        };
 
-        // Card count achievements
-        if (totalCards >= 1000) {
-            achievements.push({ id: 'master', icon: '👑', title: 'Майстер вивчення', description: '1000+ карток створено', color: 'text-yellow-600' });
-        } else if (totalCards >= 500) {
-            achievements.push({ id: 'expert', icon: '🎓', title: 'Експерт', description: '500+ карток створено', color: 'text-purple-600' });
-        } else if (totalCards >= 100) {
-            achievements.push({ id: 'scholar', icon: '📚', title: 'Вчений', description: '100+ карток створено', color: 'text-blue-600' });
-        } else if (totalCards >= 10) {
-            achievements.push({ id: 'beginner', icon: '🌱', title: 'Початківець', description: '10+ карток створено', color: 'text-green-600' });
-        }
+        // Обчислюємо які досягнення досягнуті
+        const monthCards = flashcards.filter(card => {
+            const cardDate = new Date(card.createdAt);
+            const monthAgo = new Date();
+            monthAgo.setMonth(monthAgo.getMonth() - 1);
+            return cardDate >= monthAgo;
+        }).length;
 
-        // AI usage achievements
-        if (aiCards >= 50) {
-            achievements.push({ id: 'ai_master', icon: '🤖', title: 'ШІ-асистент', description: '50+ карток згенеровано ШІ', color: 'text-purple-600' });
-        }
+        // Перевіряємо досягнення для кожної групи
+        Object.keys(allAchievements).forEach(groupKey => {
+            const group = allAchievements[groupKey];
+            group.achievements = group.achievements.map(achievement => {
+                let isUnlocked = false;
 
-        // Organization achievements
-        if (categoryStats.length >= 10) {
-            achievements.push({ id: 'organizer', icon: '📁', title: 'Організатор', description: '10+ папок створено', color: 'text-blue-600' });
-        }
+                switch (groupKey) {
+                    case 'creation':
+                        isUnlocked = totalCards >= achievement.threshold;
+                        break;
+                    case 'ai':
+                        isUnlocked = aiCards >= achievement.threshold;
+                        break;
+                    case 'organization':
+                        isUnlocked = categoryStats.length >= achievement.threshold;
+                        break;
+                    case 'activity':
+                        if (achievement.id === 'daily_learner') {
+                            // Перевіряємо сьогоднішню активність
+                            const today = new Date().toDateString();
+                            const todayCards = flashcards.filter(card =>
+                                new Date(card.createdAt).toDateString() === today
+                            ).length;
+                            isUnlocked = todayCards >= achievement.threshold;
+                        } else if (achievement.id === 'month_champion') {
+                            isUnlocked = monthCards >= achievement.threshold;
+                        } else {
+                            isUnlocked = weekCards >= achievement.threshold;
+                        }
+                        break;
+                    case 'special':
+                        if (achievement.threshold === 'balanced' && totalCards >= 20) {
+                            const aiPercentage = (aiCards / totalCards) * 100;
+                            isUnlocked = aiPercentage >= 40 && aiPercentage <= 60;
+                        } else if (achievement.threshold === 'complete' && totalCards >= 10) {
+                            const completeCards = flashcards.filter(card =>
+                                card.translation && (card.examples?.length > 0 || card.example)
+                            ).length;
+                            isUnlocked = completeCards === totalCards;
+                        } else if (achievement.threshold === 'multilingual') {
+                            // Це складніше перевірити без додаткових даних, поки що false
+                            isUnlocked = false;
+                        }
+                        break;
+                }
 
-        // Activity achievements
-        if (weekCards >= 20) {
-            achievements.push({ id: 'productive', icon: '⚡', title: 'Продуктивний тиждень', description: '20+ карток за тиждень', color: 'text-orange-600' });
-        }
-
-        return achievements;
-    };
-
-    const handleEdit = () => {
-        setIsEditing(true);
-    };
-
-    const handleSave = async () => {
-        try {
-            await updateProfile(editData);
-            setIsEditing(false);
-        } catch (error) {
-            // Error handling is done in the store
-        }
-    };
-
-    const handleCancel = () => {
-        setEditData({
-            fullName: authUser?.fullName || "",
-            profilePic: authUser?.profilePic || ""
+                return {
+                    ...achievement,
+                    isUnlocked
+                };
+            });
         });
-        setIsEditing(false);
+
+        return allAchievements;
     };
 
-    const handleImageUpload = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                setEditData(prev => ({
-                    ...prev,
-                    profilePic: e.target.result
-                }));
-            };
-            reader.readAsDataURL(file);
+    // Open edit modal
+    const handleEdit = () => {
+        setShowEditModal(true);
+    };
+
+    // Handle profile update from modal
+    const handleProfileUpdate = async (formData) => {
+        try {
+            console.log("Updating profile with data:", formData);
+            await updateProfile(formData);
+            setShowEditModal(false);
+        } catch (error) {
+            console.error("Profile update error:", error);
+            // Error is handled in the store and modal
+            throw error; // Re-throw so modal can handle it
         }
+    };
+
+    // Close edit modal
+    const handleCloseModal = () => {
+        setShowEditModal(false);
     };
 
     if (!authUser) {
-        return null;
+        return (
+            <div className="ml-64 min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <User className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">Завантаження профілю...</p>
+                </div>
+            </div>
+        );
     }
 
     return (
@@ -261,54 +321,32 @@ const ProfilePage = () => {
             <div className="p-8">
                 <div className="max-w-7xl mx-auto space-y-8">
 
-                    {/* Profile Card - Minimalist Design */}
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                    {/* Profile Card - Clean Design */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-4">
                                 {/* Profile Picture */}
-                                <div className="relative">
-                                    <div className="w-20 h-20 rounded-full bg-gray-100 overflow-hidden">
-                                        {editData.profilePic ? (
-                                            <img
-                                                src={editData.profilePic}
-                                                alt="Profile"
-                                                className="w-full h-full object-cover"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center">
-                                                <User className="w-10 h-10 text-gray-400" />
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {isEditing && (
-                                        <label className="absolute -bottom-1 -right-1 w-7 h-7 bg-blue-600 hover:bg-blue-700 rounded-full flex items-center justify-center cursor-pointer transition-colors">
-                                            <Camera className="w-4 h-4 text-white" />
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                onChange={handleImageUpload}
-                                                className="hidden"
-                                            />
-                                        </label>
+                                <div className="w-20 h-20 rounded-full bg-gray-100 overflow-hidden">
+                                    {authUser.profilePic ? (
+                                        <img
+                                            src={authUser.profilePic}
+                                            alt="Profile"
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <User className="w-10 h-10 text-gray-400" />
+                                        </div>
                                     )}
                                 </div>
 
                                 {/* Profile Info */}
                                 <div>
-                                    {isEditing ? (
-                                        <input
-                                            type="text"
-                                            value={editData.fullName}
-                                            onChange={(e) => setEditData(prev => ({ ...prev, fullName: e.target.value }))}
-                                            className="text-2xl font-semibold text-gray-900 bg-transparent border-b border-gray-300 focus:outline-none focus:border-blue-500"
-                                            placeholder="Ваше ім'я"
-                                        />
-                                    ) : (
-                                        <h2 className="text-2xl font-semibold text-gray-900">{authUser.fullName}</h2>
-                                    )}
+                                    <h2 className="text-2xl font-semibold text-gray-900">
+                                        {authUser.fullName}
+                                    </h2>
                                     <p className="text-gray-600 text-sm mt-1">{authUser.email}</p>
-                                     <p className="text-gray-500 text-xs mt-1">
+                                    <p className="text-gray-500 text-xs mt-1">
                                         З нами з {new Date(authUser.createdAt || Date.now()).toLocaleDateString('uk-UA')}
                                     </p>
                                 </div>
@@ -316,38 +354,16 @@ const ProfilePage = () => {
 
                             {/* Edit Button */}
                             <div>
-                                {isEditing ? (
-                                    <div className="flex space-x-2">
-                                        <button
-                                            onClick={handleSave}
-                                            disabled={isUpdatingProfile}
-                                            className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-4 py-2 rounded-md text-sm flex items-center space-x-1"
-                                        >
-                                            {isUpdatingProfile ? (
-                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                            ) : (
-                                                <Save className="w-4 h-4" />
-                                            )}
-                                            <span>Зберегти</span>
-                                        </button>
-                                        <button
-                                            onClick={handleCancel}
-                                            disabled={isUpdatingProfile}
-                                            className="bg-gray-400 hover:bg-gray-500 disabled:bg-gray-300 text-white px-4 py-2 rounded-md text-sm flex items-center space-x-1"
-                                        >
-                                            <X className="w-4 h-4" />
-                                            <span>Скасувати</span>
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <button
-                                        onClick={handleEdit}
-                                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md text-sm flex items-center space-x-2"
-                                    >
-                                        <Edit3 className="w-4 h-4" />
-                                        <span>Редагувати</span>
-                                    </button>
-                                )}
+                                <button
+                                    onClick={handleEdit}
+                                    disabled={isUpdatingProfile}
+                                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-lg text-sm flex items-center space-x-2 transition-colors disabled:cursor-not-allowed"
+                                >
+                                    <Edit3 className="w-4 h-4" />
+                                    <span>
+                                        {isUpdatingProfile ? "Збереження..." : "Редагувати"}
+                                    </span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -492,66 +508,106 @@ const ProfilePage = () => {
                                     </div>
                                 </div>
 
-                                {/* Monthly Trend */}
-                                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                                    <div className="flex items-center space-x-3 mb-6">
-                                        <Calendar className="w-5 h-5 text-purple-600" />
-                                        <h3 className="text-lg font-semibold text-gray-900">Динаміка створення</h3>
-                                    </div>
-                                    <div className="space-y-3">
-                                        {stats.monthlyActivity.map((month, index) => (
-                                            <div key={index} className="flex items-center justify-between">
-                                                <span className="text-sm text-gray-600">
-                                                    {month.month} {month.year}
-                                                </span>
-                                                <div className="flex items-center space-x-2">
-                                                    <div className="w-32 bg-gray-200 rounded-full h-2">
-                                                        <div
-                                                            className="bg-purple-500 h-full rounded-full"
-                                                            style={{
-                                                                width: `${Math.max(5, (month.count / Math.max(...stats.monthlyActivity.map(m => m.count), 1)) * 100)}%`
-                                                            }}
-                                                        ></div>
-                                                    </div>
-                                                    <span className="text-sm font-medium text-gray-700 w-6 text-right">
-                                                        {month.count}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
+
+                            </div>
+
+                            {/* Achievements - Full Width */}
+                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                                <div className="flex items-center space-x-3 mb-6">
+                                    <Trophy className="w-5 h-5 text-yellow-600" />
+                                    <h3 className="text-lg font-semibold text-gray-900">Досягнення</h3>
                                 </div>
 
-                                {/* Achievements */}
-                                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                                    <div className="flex items-center space-x-3 mb-6">
-                                        <Trophy className="w-5 h-5 text-yellow-600" />
-                                        <h3 className="text-lg font-semibold text-gray-900">Досягнення</h3>
-                                    </div>
-                                    {stats.achievements.length > 0 ? (
-                                        <div className="space-y-4">
-                                            {stats.achievements.map((achievement) => (
-                                                <div key={achievement.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                                                    <div className="text-2xl">{achievement.icon}</div>
-                                                    <div className="flex-1">
-                                                        <h4 className={`font-medium ${achievement.color}`}>
-                                                            {achievement.title}
-                                                        </h4>
-                                                        <p className="text-sm text-gray-600">
-                                                            {achievement.description}
-                                                        </p>
+                                {stats.achievements && Object.keys(stats.achievements).length > 0 ? (
+                                    <div className="space-y-6">
+                                        {Object.entries(stats.achievements).map(([groupKey, group]) => {
+                                            const unlockedCount = group.achievements.filter(a => a.isUnlocked).length;
+                                            const totalCount = group.achievements.length;
+
+                                            // Мапінг кольорів для безпечного використання в Tailwind
+                                            const colorMap = {
+                                                blue: { bg: 'bg-blue-500', text: 'text-blue-700', border: 'border-blue-200' },
+                                                purple: { bg: 'bg-purple-500', text: 'text-purple-700', border: 'border-purple-200' },
+                                                emerald: { bg: 'bg-emerald-500', text: 'text-emerald-700', border: 'border-emerald-200' },
+                                                orange: { bg: 'bg-orange-500', text: 'text-orange-700', border: 'border-orange-200' },
+                                                pink: { bg: 'bg-pink-500', text: 'text-pink-700', border: 'border-pink-200' }
+                                            };
+
+                                            const colors = colorMap[group.color] || colorMap.blue;
+
+                                            return (
+                                                <div key={groupKey} className="border border-gray-100 rounded-lg p-4">
+                                                    {/* Group Header */}
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <div className="flex items-center space-x-2">
+                                                            <span className="text-lg">{group.icon}</span>
+                                                            <h4 className={`font-semibold ${colors.text}`}>
+                                                                {group.title}
+                                                            </h4>
+                                                        </div>
+                                                        <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                                                            {unlockedCount}/{totalCount}
+                                                        </div>
                                                     </div>
-                                                    <Award className={`w-5 h-5 ${achievement.color}`} />
+
+                                                    {/* Progress Bar */}
+                                                    <div className="mb-4">
+                                                        <div className="w-full bg-gray-200 rounded-full h-2">
+                                                            <div
+                                                                className={`${colors.bg} h-2 rounded-full transition-all duration-500`}
+                                                                style={{ width: `${(unlockedCount / totalCount) * 100}%` }}
+                                                            ></div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Achievements Grid */}
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                        {group.achievements.map((achievement) => (
+                                                            <div
+                                                                key={achievement.id}
+                                                                className={`flex items-center space-x-3 p-3 rounded-lg transition-all ${
+                                                                    achievement.isUnlocked
+                                                                        ? 'bg-green-50 border border-green-200'
+                                                                        : 'bg-gray-50 border border-gray-200 opacity-60'
+                                                                }`}
+                                                            >
+                                                                <div className={`text-xl ${achievement.isUnlocked ? '' : 'grayscale'}`}>
+                                                                    {achievement.icon}
+                                                                </div>
+                                                                <div className="flex-1 min-w-0">
+                                                                    <h5 className={`font-medium text-sm ${
+                                                                        achievement.isUnlocked
+                                                                            ? achievement.color
+                                                                            : 'text-gray-500'
+                                                                    }`}>
+                                                                        {achievement.title}
+                                                                    </h5>
+                                                                    <p className={`text-xs ${
+                                                                        achievement.isUnlocked
+                                                                            ? 'text-gray-600'
+                                                                            : 'text-gray-400'
+                                                                    } truncate`}>
+                                                                        {achievement.description}
+                                                                    </p>
+                                                                </div>
+                                                                {achievement.isUnlocked && (
+                                                                    <div className="flex-shrink-0">
+                                                                        <Award className="w-4 h-4 text-green-600" />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="text-center py-8">
-                                            <Target className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                                            <p className="text-gray-500">Створіть свою першу картку для отримання досягнень!</p>
-                                        </div>
-                                    )}
-                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8">
+                                        <Target className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                                        <p className="text-gray-500">Створіть свою першу картку для отримання досягнень!</p>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Learning Insights */}
@@ -584,6 +640,7 @@ const ProfilePage = () => {
                                     </div>
                                 </div>
                             </div>
+
                         </>
                     ) : (
                         <div className="text-center py-12">
@@ -594,6 +651,15 @@ const ProfilePage = () => {
                     )}
                 </div>
             </div>
+
+            {/* Profile Edit Modal */}
+            <ProfileEditModal
+                isOpen={showEditModal}
+                onClose={handleCloseModal}
+                onSave={handleProfileUpdate}
+                initialData={authUser}
+                isLoading={isUpdatingProfile}
+            />
         </div>
     );
 };

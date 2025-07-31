@@ -96,22 +96,65 @@ const logout = (req, res) => {
     }
 }
 
+// ВИПРАВЛЕНО: Тепер обробляє і fullName, і profilePic
 const updateProfile = async (req, res) => {
     try {
-        const { profilePic } = req.body;
-        const userId = req.user._id
+        const { fullName, profilePic } = req.body;
+        const userId = req.user._id;
 
-        if (!profilePic) {
-            return res.status(400).json({message: "ProfilePic is required"});
+        // Перевіряємо, чи є хоча б одне поле для оновлення
+        if (!fullName && !profilePic) {
+            return res.status(400).json({message: "At least one field (fullName or profilePic) is required"});
         }
 
-        const uploadResponse = await cloudinary.uploader.upload(profilePic);
-        const updatedUser = await User.findByIdAndUpdate(userId, {profilePic:uploadResponse.secure_url}, {new:true});
+        // Підготовуємо об'єкт для оновлення
+        const updateData = {};
 
-        return res.status(200).json(updatedUser);
+        // Оновлюємо fullName якщо воно надано
+        if (fullName && fullName.trim()) {
+            updateData.fullName = fullName.trim();
+        }
+
+        // Оновлюємо profilePic якщо воно надано
+        if (profilePic) {
+            try {
+                const uploadResponse = await cloudinary.uploader.upload(profilePic);
+                updateData.profilePic = uploadResponse.secure_url;
+            } catch (cloudinaryError) {
+                console.log("Cloudinary upload error:", cloudinaryError.message);
+                return res.status(400).json({message: "Error uploading image"});
+            }
+        }
+
+        // Оновлюємо користувача в базі даних
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            updateData,
+            { new: true, runValidators: true }
+        ).select("-password"); // Не повертаємо пароль
+
+        if (!updatedUser) {
+            return res.status(404).json({message: "User not found"});
+        }
+
+        return res.status(200).json({
+            _id: updatedUser._id,
+            fullName: updatedUser.fullName,
+            email: updatedUser.email,
+            profilePic: updatedUser.profilePic,
+            createdAt: updatedUser.createdAt,
+            updatedAt: updatedUser.updatedAt
+        });
 
     } catch (error) {
-        console.log("Error in update controller", error.message);
+        console.log("Error in update profile controller", error.message);
+
+        // Обробка помилок валідації Mongoose
+        if (error.name === 'ValidationError') {
+            const messages = Object.values(error.errors).map(err => err.message);
+            return res.status(400).json({message: messages.join('. ')});
+        }
+
         return res.status(500).json({message: `Internal Server Error`});
     }
 }
