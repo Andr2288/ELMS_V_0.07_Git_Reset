@@ -372,7 +372,7 @@ const HomePage = () => {
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                         {flashcards.map((card) => (
                                             <div key={card._id} className="bg-white rounded-lg shadow-md border-1 border-gray-200 hover:shadow-lg transition-shadow">
-                                                <div className="p-6">
+                                                <div className="flex flex-col justify-between p-6 h-full">
                                                     <div className="mb-4">
                                                         <div className="flex items-center space-x-2 mb-1">
                                                             <div
