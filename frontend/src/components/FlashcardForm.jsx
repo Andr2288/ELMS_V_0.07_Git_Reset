@@ -1,7 +1,7 @@
-// frontend/src/components/FlashcardForm.jsx - ОНОВЛЕНА ВЕРСІЯ З ПІДТРИМКОЮ КІЛЬКОХ ПРИКЛАДІВ
+// frontend/src/components/FlashcardForm.jsx - ВИПРАВЛЕНИЙ
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Save, X, Volume2, Folder, Settings, Sparkles, RotateCcw, AlertCircle, Loader, StickyNote, Zap, Plus, Trash2 } from "lucide-react";
+import { Save, X, Folder, Settings, Sparkles, RotateCcw, AlertCircle, Loader, StickyNote, Zap, Plus, Trash2 } from "lucide-react";
 import { axiosInstance } from "../lib/axios.js";
 import { useCategoryStore } from "../store/useCategoryStore.js";
 import { useUserSettingsStore } from "../store/useUserSettingsStore.js";
@@ -18,7 +18,6 @@ const FlashcardForm = ({
   const { categories, getCategories } = useCategoryStore();
   const {
     loadSettings,
-    getTTSSettings,
     hasUserApiKey,
     getDefaultEnglishLevel,
     getChatGPTModel
@@ -31,15 +30,12 @@ const FlashcardForm = ({
     translation: "",
     shortDescription: "",
     explanation: "",
-    examples: ["", "", ""], // ОНОВЛЕНО: тепер масив з 3 прикладів
+    examples: ["", "", ""], // Масив з 3 прикладів
     notes: "",
     isAIGenerated: false,
     categoryId: "",
   });
 
-  // Audio playback states
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   // AI mode states
@@ -48,13 +44,15 @@ const FlashcardForm = ({
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [aiError, setAiError] = useState(null);
 
-  // Individual field generation states
+  // Individual field generation states - ВИПРАВЛЕНО
   const [isGeneratingField, setIsGeneratingField] = useState({
     shortDescription: false,
     explanation: false,
-    examples: false, // ОНОВЛЕНО: тепер examples замість example
+    definition: false, // для детального пояснення
+    examples: false,
     transcription: false,
-    translation: false
+    translation: false,
+    translateToUkrainian: false // для перекладу на українську
   });
 
   // Auto-save state for quick creation
@@ -62,10 +60,6 @@ const FlashcardForm = ({
 
   // Ref for auto-focus
   const textInputRef = useRef(null);
-
-  // ВИПРАВЛЕННЯ: Використовуємо useRef для аудіо замість useState
-  const currentAudioRef = useRef(null);
-  const isPlayingRef = useRef(false);
 
   // Load categories and settings when form opens
   useEffect(() => {
@@ -96,7 +90,7 @@ const FlashcardForm = ({
 
   useEffect(() => {
     if (editingCard) {
-      // ОНОВЛЕНО: обробляємо examples як масив
+      // Обробляємо examples як масив
       let examples = ["", "", ""];
       if (editingCard.examples && Array.isArray(editingCard.examples)) {
         examples = [...editingCard.examples];
@@ -139,149 +133,6 @@ const FlashcardForm = ({
     }
   }, [editingCard, isOpen, preselectedCategoryId]);
 
-  // ВИПРАВЛЕННЯ: Стабільна функція зупинки аудіо
-  const stopCurrentAudio = useCallback(() => {
-    if (currentAudioRef.current) {
-      try {
-        currentAudioRef.current.pause();
-        currentAudioRef.current.currentTime = 0;
-        currentAudioRef.current = null;
-      } catch (error) {
-        console.warn("Error stopping audio:", error);
-      }
-    }
-    isPlayingRef.current = false;
-    setIsPlayingAudio(false);
-    setIsGeneratingAudio(false);
-  }, []); // БЕЗ ЗАЛЕЖНОСТЕЙ!
-
-  // ВИПРАВЛЕННЯ: Стабільна функція озвучки
-  const speakText = useCallback(async (text) => {
-    if (!text || isPlayingRef.current || isGeneratingAudio) {
-      console.log("Speech blocked:", { text: !!text, isPlaying: isPlayingRef.current, isGenerating: isGeneratingAudio });
-      return;
-    }
-
-    if (!settingsLoaded) {
-      toast.error("Налаштування ще завантажуються...");
-      return;
-    }
-
-    let loadingToast;
-
-    try {
-      setIsGeneratingAudio(true);
-      stopCurrentAudio();
-
-      loadingToast = toast.loading("Генерація озвучення...");
-
-      console.log("Starting TTS for:", text.substring(0, 50));
-
-      const response = await axiosInstance.post(
-          "/tts/speech",
-          { text: text.trim() },
-          {
-            responseType: "blob",
-            timeout: 30000,
-          }
-      );
-
-      if (loadingToast) {
-        toast.dismiss(loadingToast);
-      }
-
-      const audioBlob = new Blob([response.data], { type: "audio/mpeg" });
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-
-      currentAudioRef.current = audio;
-      setIsGeneratingAudio(false);
-      isPlayingRef.current = true;
-      setIsPlayingAudio(true);
-
-      audio.onended = () => {
-        console.log("Audio ended");
-        isPlayingRef.current = false;
-        setIsPlayingAudio(false);
-        currentAudioRef.current = null;
-        URL.revokeObjectURL(audioUrl);
-      };
-
-      audio.onerror = (error) => {
-        console.error("Audio error:", error);
-        isPlayingRef.current = false;
-        setIsPlayingAudio(false);
-        currentAudioRef.current = null;
-        URL.revokeObjectURL(audioUrl);
-        toast.error("Помилка відтворення звуку");
-      };
-
-      audio.onabort = () => {
-        console.log("Audio aborted");
-        isPlayingRef.current = false;
-        setIsPlayingAudio(false);
-        currentAudioRef.current = null;
-        URL.revokeObjectURL(audioUrl);
-      };
-
-      await audio.play();
-      console.log("Audio started playing");
-
-    } catch (error) {
-      if (loadingToast) {
-        toast.dismiss(loadingToast);
-      }
-
-      // ВАЖЛИВО: Скидання стану при помилці
-      setIsGeneratingAudio(false);
-      isPlayingRef.current = false;
-      setIsPlayingAudio(false);
-      currentAudioRef.current = null;
-
-      console.error("Error playing TTS:", error);
-
-      if (error.response?.status === 401) {
-        toast.error("API ключ недійсний", {
-          description: "Перевірте налаштування OpenAI API",
-          action: {
-            label: "Налаштування",
-            onClick: () => {
-              onClose();
-              window.location.href = "/settings";
-            },
-          },
-        });
-      } else if (error.response?.status === 402) {
-        toast.error("Недостатньо кредитів OpenAI", {
-          description: "Поповніть баланс на platform.openai.com",
-        });
-      } else if (error.response?.status === 429) {
-        toast.error("Перевищено ліміт запитів OpenAI", {
-          description: "Спробуйте пізніше",
-        });
-      } else if (error.response?.status === 503) {
-        toast.error("Проблеми з підключенням до OpenAI API");
-      } else if (error.response?.status === 500) {
-        toast.error("OpenAI API не налаштований", {
-          description: "Встановіть API ключ в налаштуваннях",
-          action: {
-            label: "Налаштування",
-            onClick: () => {
-              onClose();
-              window.location.href = "/settings";
-            },
-          },
-        });
-      } else if (error.code === "ECONNABORTED") {
-        toast.error("Тайм-аут запиту", {
-          description: "Спробуйте ще раз",
-        });
-      } else {
-        toast.error("Помилка генерації озвучення");
-      }
-    }
-  }, [settingsLoaded, stopCurrentAudio, onClose]); // МІНІМАЛЬНІ ЗАЛЕЖНОСТІ
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.text.trim()) return;
@@ -295,7 +146,6 @@ const FlashcardForm = ({
       };
 
       await onSubmit(submitData);
-      stopCurrentAudio();
       onClose();
     } catch (error) {
       console.error("Error submitting form:", error);
@@ -314,7 +164,7 @@ const FlashcardForm = ({
     }));
   };
 
-  // НОВА ФУНКЦІЯ: Обробка зміни прикладів
+  // Обробка зміни прикладів
   const handleExampleChange = (index, value) => {
     const newExamples = [...formData.examples];
     newExamples[index] = value;
@@ -324,7 +174,7 @@ const FlashcardForm = ({
     }));
   };
 
-  // НОВА ФУНКЦІЯ: Додавання нового приклада
+  // Додавання нового приклада
   const addExample = () => {
     if (formData.examples.length < 5) { // Максимум 5 прикладів
       setFormData((prev) => ({
@@ -334,7 +184,7 @@ const FlashcardForm = ({
     }
   };
 
-  // НОВА ФУНКЦІЯ: Видалення приклада
+  // Видалення приклада
   const removeExample = (index) => {
     if (formData.examples.length > 1) { // Мінімум 1 приклад
       const newExamples = formData.examples.filter((_, i) => i !== index);
@@ -346,7 +196,6 @@ const FlashcardForm = ({
   };
 
   const handleClose = () => {
-    stopCurrentAudio();
     onClose();
   };
 
@@ -355,7 +204,7 @@ const FlashcardForm = ({
     setAiError(null);
   };
 
-  // Генерація окремого поля
+  // Генерація окремого поля - ВИПРАВЛЕНО
   const generateField = async (fieldType) => {
     if (!formData.text.trim()) {
       toast.error("Введіть слово або фразу спочатку");
@@ -369,6 +218,8 @@ const FlashcardForm = ({
     setIsGeneratingField(prev => ({ ...prev, [fieldType]: true }));
 
     try {
+      console.log(`Generating field: ${fieldType} for text: "${formData.text.trim()}"`);
+
       const response = await axiosInstance.post("/openai/generate-flashcard", {
         text: formData.text.trim(),
         englishLevel: englishLevel,
@@ -376,9 +227,11 @@ const FlashcardForm = ({
       });
 
       const result = response.data.result;
+      console.log(`Generated result for ${fieldType}:`, result);
 
+      // ВИПРАВЛЕНО: Спеціальна обробка різних типів полів
       if (fieldType === "examples") {
-        // ОНОВЛЕНО: обробляємо масив прикладів
+        // Обробляємо масив прикладів
         if (Array.isArray(result)) {
           const newExamples = ["", "", ""];
           result.forEach((example, index) => {
@@ -399,7 +252,22 @@ const FlashcardForm = ({
             isAIGenerated: true
           }));
         }
+      } else if (fieldType === "translateToUkrainian") {
+        // Спеціальна обробка для перекладу на українську
+        setFormData(prev => ({
+          ...prev,
+          translation: result,
+          isAIGenerated: true
+        }));
+      } else if (fieldType === "definition") {
+        // Спеціальна обробка для детального пояснення
+        setFormData(prev => ({
+          ...prev,
+          explanation: result,
+          isAIGenerated: true
+        }));
       } else {
+        // Стандартна обробка для інших полів
         setFormData(prev => ({
           ...prev,
           [fieldType]: result,
@@ -412,12 +280,15 @@ const FlashcardForm = ({
     } catch (error) {
       console.error(`Error generating ${fieldType}:`, error);
 
+      // Детальна обробка помилок
       if (error.response?.status === 401) {
         toast.error("API ключ недійсний");
       } else if (error.response?.status === 402) {
         toast.error("Недостатньо кредитів OpenAI");
       } else if (error.response?.status === 429) {
         toast.error("Перевищено ліміт запитів OpenAI");
+      } else if (error.response?.status === 500) {
+        toast.error("OpenAI API не налаштований");
       } else {
         toast.error(`Помилка генерації ${getFieldName(fieldType).toLowerCase()}`);
       }
@@ -426,13 +297,16 @@ const FlashcardForm = ({
     }
   };
 
+  // ВИПРАВЛЕНО: Додано нові типи полів
   const getFieldName = (fieldType) => {
     const names = {
       shortDescription: "Короткий опис",
       explanation: "Детальне пояснення",
-      examples: "Приклади", // ОНОВЛЕНО
+      definition: "Детальне пояснення",
+      examples: "Приклади",
       transcription: "Транскрипцію",
-      translation: "Переклад"
+      translation: "Переклад",
+      translateToUkrainian: "Переклад"
     };
     return names[fieldType] || fieldType;
   };
@@ -461,7 +335,7 @@ const FlashcardForm = ({
       if (response.data.parsed) {
         const aiContent = response.data.result;
 
-        // ОНОВЛЕНО: обробляємо examples як масив
+        // Обробляємо examples як масив
         let examples = ["", "", ""];
         if (aiContent.examples && Array.isArray(aiContent.examples)) {
           aiContent.examples.forEach((example, index) => {
@@ -496,7 +370,7 @@ const FlashcardForm = ({
         const transcriptionMatch = rawText.match(/transcription["']?\s*:\s*["']([^"']+)["']/i);
         const notesMatch = rawText.match(/notes["']?\s*:\s*["']([^"']+)["']/i);
 
-        // ОНОВЛЕНО: намагаємося витягти examples як масив
+        // Намагаємося витягти examples як масив
         let examples = ["", "", ""];
         const examplesMatch = rawText.match(/examples["']?\s*:\s*\[([\s\S]*?)\]/i);
         if (examplesMatch) {
@@ -620,7 +494,7 @@ const FlashcardForm = ({
         const transcriptionMatch = rawText.match(/transcription["']?\s*:\s*["']([^"']+)["']/i);
         const notesMatch = rawText.match(/notes["']?\s*:\s*["']([^"']+)["']/i);
 
-        // ОНОВЛЕНО: обробляємо examples
+        // Обробляємо examples
         let examples = [];
         const examplesMatch = rawText.match(/examples["']?\s*:\s*\[([\s\S]*?)\]/i);
         if (examplesMatch) {
@@ -646,7 +520,7 @@ const FlashcardForm = ({
         };
       }
 
-      // ОНОВЛЕНО: обробляємо examples в submitData
+      // Обробляємо examples в submitData
       let examples = [];
       if (aiContent.examples && Array.isArray(aiContent.examples)) {
         examples = aiContent.examples.filter(ex => ex && ex.trim());
@@ -671,7 +545,6 @@ const FlashcardForm = ({
       await onSubmit(submitData);
 
       // Close the form
-      stopCurrentAudio();
       onClose();
 
     } catch (error) {
@@ -696,7 +569,7 @@ const FlashcardForm = ({
     }
   };
 
-  // ВИПРАВЛЕННЯ: Покращена обробка клавіш з перевіркою, що форма відкрита
+  // Обробка клавіш
   useEffect(() => {
     if (!isOpen) return;
 
@@ -728,51 +601,14 @@ const FlashcardForm = ({
               activeElement.contentEditable === "true");
 
       if (isInputField) return;
-
-      if (
-          event.key === "v" ||
-          event.key === "V" ||
-          event.key === "м" ||
-          event.key === "М"
-      ) {
-        event.preventDefault();
-
-        // ВИПРАВЛЕННЯ: Додаткові перевірки для озвучки
-        if (formData.text.trim() && !isGeneratingAudio && !isPlayingRef.current && !isQuickCreating) {
-          console.log("Form keyboard TTS triggered for:", formData.text);
-          speakText(formData.text);
-        } else {
-          console.log("Form TTS blocked by conditions:", {
-            hasText: !!formData.text.trim(),
-            isGenerating: isGeneratingAudio,
-            isPlaying: isPlayingRef.current,
-            isQuickCreating
-          });
-        }
-      }
     };
 
-    // ВАЖЛИВО: Додаємо обробник з passive: false
     window.addEventListener("keydown", handleKeyPress, { passive: false });
 
     return () => {
       window.removeEventListener("keydown", handleKeyPress);
     };
-  }, [isOpen, formData.text, isGeneratingAudio, isQuickCreating, isGeneratingAI, speakText]);
-
-  // ВИПРАВЛЕННЯ: Очищення при демонтуванні компонента або закритті форми
-  useEffect(() => {
-    return () => {
-      stopCurrentAudio();
-    };
-  }, [stopCurrentAudio]);
-
-  // ВИПРАВЛЕННЯ: Очищення при закритті форми
-  useEffect(() => {
-    if (!isOpen) {
-      stopCurrentAudio();
-    }
-  }, [isOpen, stopCurrentAudio]);
+  }, [isOpen, formData.text, isQuickCreating, isGeneratingAI]);
 
   if (!isOpen) return null;
 
@@ -840,7 +676,7 @@ const FlashcardForm = ({
                   </div>
               )}
 
-              {/* AI Generation Section - НА САМИЙ ВЕРХ */}
+              {/* AI Generation Section */}
               {isAIMode && (
                   <div className="bg-purple-50 rounded-lg p-4 border border-purple-200 mb-6">
                     <div className="mb-4">
@@ -915,7 +751,7 @@ const FlashcardForm = ({
                   </div>
               )}
 
-              {/* Word/Text with TTS button - ТЕПЕР НА ДРУГОМУ МІСЦІ */}
+              {/* Word/Text - БЕЗ ОЗВУЧКИ */}
               <div>
                 <div className="flex justify-between items-center mb-2">
                   <label className="block text-sm font-medium text-gray-700">
@@ -928,54 +764,20 @@ const FlashcardForm = ({
                     <span className="ml-1">швидке створення</span>
                   </div>
                 </div>
-                <div className="flex space-x-2">
-                  <textarea
-                      ref={textInputRef}
-                      value={formData.text}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        const capitalized = value.charAt(0).toUpperCase() + value.slice(1);
-                        handleInputChange("text", capitalized);
-                      }}
-                      placeholder="Введіть слово або фразу..."
-                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                      rows="1"
-                      required
-                      disabled={isQuickCreating}
-                  />
-                  <button
-                      type="button"
-                      onClick={() => speakText(formData.text)}
-                      disabled={
-                          isGeneratingAudio ||
-                          !formData.text.trim() ||
-                          isPlayingAudio ||
-                          !settingsLoaded ||
-                          isQuickCreating
-                      }
-                      className={
-                          "px-4 py-3 rounded-lg transition-all shadow-md text-white flex items-center justify-center disabled:bg-gray-300 disabled:scale-100 h-fit " +
-                          (isPlayingAudio || isGeneratingAudio
-                              ? ""
-                              : "bg-purple-500 hover:bg-purple-600 hover:scale-105")
-                      }
-                      title={
-                        !settingsLoaded
-                            ? "Завантаження налаштувань..."
-                            : isGeneratingAudio
-                                ? "Генерація озвучення..."
-                                : isPlayingAudio
-                                    ? "Відтворення..."
-                                    : "Озвучити слово (або натисніть V)"
-                      }
-                  >
-                    {isGeneratingAudio ? (
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    ) : (
-                        <Volume2 className="w-5 h-7" />
-                    )}
-                  </button>
-                </div>
+                <textarea
+                    ref={textInputRef}
+                    value={formData.text}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const capitalized = value.charAt(0).toUpperCase() + value.slice(1);
+                      handleInputChange("text", capitalized);
+                    }}
+                    placeholder="Введіть слово або фразу..."
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                    rows="1"
+                    required
+                    disabled={isQuickCreating}
+                />
 
                 {/* Quick creation indicator */}
                 {isQuickCreating && (
@@ -989,7 +791,7 @@ const FlashcardForm = ({
                 )}
               </div>
 
-              {/* Category Selection - ТЕПЕР НА ТРЕТЬОМУ МІСЦІ */}
+              {/* Category Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Папка
@@ -1050,7 +852,7 @@ const FlashcardForm = ({
                     />
                   </div>
 
-                  {/* Translation with AI button */}
+                  {/* Translation with AI button - ВИПРАВЛЕНО */}
                   <div>
                     <div className="flex justify-between items-center mb-2">
                       <label className="block text-sm font-medium text-gray-700">
@@ -1117,7 +919,7 @@ const FlashcardForm = ({
 
                 {/* Right Column */}
                 <div className="space-y-6">
-                  {/* Explanation with AI button */}
+                  {/* Explanation with AI button - ВИПРАВЛЕНО */}
                   <div>
                     <div className="flex justify-between items-center mb-2">
                       <label className="block text-sm font-medium text-gray-700">
@@ -1147,7 +949,7 @@ const FlashcardForm = ({
                     />
                   </div>
 
-                  {/* ОНОВЛЕНО: Examples with AI button - тепер відображаємо кілька прикладів */}
+                  {/* Examples with AI button */}
                   <div>
                     <div className="flex justify-between items-center mb-2">
                       <label className="block text-sm font-medium text-gray-700">
@@ -1237,7 +1039,7 @@ const FlashcardForm = ({
                         </p>
                         <p>
                           Встановіть власний API ключ в налаштуваннях для необмеженого
-                          доступу до TTS та ШІ-генерації
+                          доступу до ШІ-генерації
                         </p>
                       </div>
                     </div>

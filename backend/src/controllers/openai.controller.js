@@ -68,22 +68,22 @@ const generateFlashcardContent = async (req, res) => {
         let prompt = "";
         switch (promptType) {
             case "definition":
-                prompt = `English level: ${englishLevel}. Provide a detailed definition/explanation for: ${text}`;
+                prompt = `English level you must to use in your output: ${englishLevel}. A detailed definition/explanation of meaning and usage (can be longer and more comprehensive) for: ${text}. Format example for output: A valley is a long, low area of land between hills or mountains. It is often formed by rivers or glaciers and can be wide or narrow. Valleys are places where people can live, grow crops, or travel through because they are lower and sometimes flatter than the surrounding land.`;
                 break;
             case "shortDescription":
-                prompt = `English level: ${englishLevel}. Write a very short description (2-3 sentences max, under 150 characters) for English word/phrase: "${text}". The description should be concise, clear and appropriate for ${englishLevel} level learners.`;
+                prompt = `English level you must to use in your output: ${englishLevel}. Write a very short description (2-3 sentences max, under 150 characters) for English word/phrase: "${text}". The description should be concise, clear and appropriate for ${englishLevel} level learners.`;
                 break;
             case "example":
-                prompt = `Create a sentence. English level: ${englishLevel}. Word to use: ${text}`;
+                prompt = `Create a sentence. English level you must to use in your output: ${englishLevel}. Word to use: ${text}`;
                 break;
             case "examples": // НОВИЙ ТИП: генерація 3 прикладів
-                prompt = `Create 3 different example sentences using the word/phrase: "${text}". English level: ${englishLevel}. Each sentence should show different contexts or meanings. Return as a JSON array of strings.`;
+                prompt = `Create 3 different example sentences using the word/phrase: "${text}". English level you must to use in your output: ${englishLevel}. Each sentence should show different contexts or meanings. Return as a JSON array of strings.`;
                 break;
             case "transcription":
-                prompt = `Provide me with the transcription for: ${text}. Resources: 1) Oxford Learner's Dictionaries. Format for output: Transcription for 'University' (Oxford Learner's Dictionaries):UK: [ˌjuːnɪˈvɜːsəti]; US: [ˌjuːnɪˈvɜːrsəti];`;
+                prompt = `Provide me with the transcription for: ${text}. Resources: Oxford Learner's Dictionaries. Format for output: UK: [ˌjuːnɪˈvɜːsəti]; US: [ˌjuːnɪˈvɜːrsəti];`;
                 break;
             case "translateToUkrainian":
-                prompt = `Provide translation to Ukrainian for: ${text}.`;
+                prompt = `You are integrated in English LMS. Provide some variants of translation to Ukrainian for: ${text}. Format example for output of the word "Look": "Виглядати; дивитися; вигляд; зовнішність`;
                 break;
             case "translateFromUkrainian":
                 prompt = `Provide translation from Ukrainian to English for: ${text}`;
@@ -91,15 +91,15 @@ const generateFlashcardContent = async (req, res) => {
             case "completeFlashcard":
             default:
                 prompt = `Create a complete flashcard for an English vocabulary word/phrase. Word: "${text}".
-                English level: ${englishLevel}.
+                English level you must to use in your output: ${englishLevel}.
                 
                 Return JSON format:
                 {
                   "text": "${text}",
-                  "transcription": "Resources: Oxford Learner's Dictionaries. Format for output: Transcription for 'University' (Oxford Learner's Dictionaries):UK: [ˌjuːnɪˈvɜːsəti] US: [ˌjuːnɪˈvɜːrsəti];",
-                  "translation": "Some variants of Ukrainian translation",
-                  "shortDescription": "Very brief 2-3 sentences description (under 150 characters), clear and concise",
-                  "explanation": "A detailed definition/explanation of meaning and usage (can be longer and more comprehensive)",
+                  "transcription": "Resources: Oxford Learner's Dictionaries. Format for output: UK: [ˌjuːnɪˈvɜːsəti] US: [ˌjuːnɪˈvɜːrsəti];",
+                  "translation": "Some variants of translation to Ukrainian. Format example for output of the word "Look": "Виглядати; дивитися; вигляд; зовнішність",
+                  "shortDescription": "A very short description (2-3 sentences max, under 150 characters). The description should be concise and clear",
+                  "explanation": "A detailed definition/explanation of meaning and usage (can be longer and more comprehensive). Format example for output: A valley is a long, low area of land between hills or mountains. It is often formed by rivers or glaciers and can be wide or narrow. Valleys are places where people can live, grow crops, or travel through because they are lower and sometimes flatter than the surrounding land.",
                   "examples": ["Example sentence 1 using the word", "Example sentence 2 showing different context", "Example sentence 3 with another usage"],
                   "notes": ""
                 }
@@ -110,7 +110,7 @@ const generateFlashcardContent = async (req, res) => {
                 - Short description that's concise but informative for quick reference
                 - Detailed explanation for comprehensive understanding
                 - THREE natural example sentences showing different contexts
-                - Ukrainian translation`;
+                - Ukrainian translation variants`;
                 break;
         }
 

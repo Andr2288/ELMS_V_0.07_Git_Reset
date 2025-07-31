@@ -377,12 +377,10 @@ const DetailedFlashcardView = ({ flashcards, onEdit }) => {
           });
         }
       } else if (
-          event.key === "r" ||
-          event.key === "R" ||
-          event.key === "к" ||
-          event.key === "К"
+          (event.key === "r" || event.key === "R" || event.key === "к" || event.key === "К") &&
+          !event.ctrlKey && !event.metaKey // НЕ перехоплюємо Ctrl+R (Windows/Linux) та Cmd+R (Mac)
       ) {
-        // НОВА КЛАВІША: R для регенерації прикладів
+        // НОВА КЛАВІША: R для регенерації прикладів (тільки без Ctrl/Cmd)
         event.preventDefault();
 
         if (isFlipped && !isRegeneratingExamples && !isChanging) {

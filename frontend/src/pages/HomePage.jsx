@@ -1,4 +1,4 @@
-// frontend/src/pages/HomePage.jsx - ОНОВЛЕНА ВЕРСІЯ З ПІДТРИМКОЮ КІЛЬКОХ ПРИКЛАДІВ
+// frontend/src/pages/HomePage.jsx
 
 import { useState, useEffect } from "react";
 import { useFlashcardStore } from "../store/useFlashcardStore.js";
@@ -17,11 +17,7 @@ const HomePage = () => {
         createFlashcard,
         updateFlashcard,
         deleteFlashcard,
-        setCategoryFilter,
-        getExamplesFromCard,    // ДОДАНО: нова функція з store
-        getFirstExample,        // ДОДАНО: нова функція з store
-        hasExamples,           // ДОДАНО: нова функція з store
-        getExamplesCount       // ДОДАНО: нова функція з store
+        setCategoryFilter
     } = useFlashcardStore();
 
     const {
@@ -212,40 +208,6 @@ const HomePage = () => {
         return selectedCategoryData._id;
     };
 
-    // НОВА ФУНКЦІЯ: рендеринг інформації про приклади в grid режимі
-    const renderExamplesInfo = (card) => {
-        const examples = getExamplesFromCard(card);
-
-        if (examples.length === 0) {
-            return null;
-        }
-
-        const firstExample = examples[0];
-        const examplesCount = examples.length;
-
-        return (
-            <div className="mt-2">
-                <div className="text-amber-700 text-xs font-medium mb-1 flex items-center">
-                    {examplesCount > 1 ? (
-                        <span className="flex items-center space-x-1">
-                            <span>Приклади ({examplesCount})</span>
-                            {examplesCount > 1 && (
-                                <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-xs">
-                                    +{examplesCount - 1}
-                                </span>
-                            )}
-                        </span>
-                    ) : (
-                        <span>Приклад</span>
-                    )}
-                </div>
-                <p className="text-gray-600 text-sm italic line-clamp-2">
-                    "{firstExample}"
-                </p>
-            </div>
-        );
-    };
-
     if (isLoadingCategories && currentView === "categories") {
         return (
             <div className="ml-64 min-h-screen bg-gray-50 flex items-center justify-center">
@@ -409,7 +371,7 @@ const HomePage = () => {
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                         {flashcards.map((card) => (
-                                            <div key={card._id} className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow">
+                                            <div key={card._id} className="bg-white rounded-lg shadow-md border-1 border-gray-200 hover:shadow-lg transition-shadow">
                                                 <div className="p-6">
                                                     <div className="mb-4">
                                                         <div className="flex items-center space-x-2 mb-1">
@@ -430,7 +392,7 @@ const HomePage = () => {
 
                                                         {card.transcription && (
                                                             <p className="text-sm text-gray-600 font-mono mb-4">
-                                                                [{card.transcription}]
+                                                                {card.transcription}
                                                             </p>
                                                         )}
 
@@ -453,9 +415,6 @@ const HomePage = () => {
                                                                 </p>
                                                             )
                                                         )}
-
-                                                        {/* ОНОВЛЕНО: Відображення прикладів використовуючи нові функції */}
-                                                        {renderExamplesInfo(card)}
                                                     </div>
 
                                                     <div className="flex justify-between items-center">

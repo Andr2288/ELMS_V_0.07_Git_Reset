@@ -19,8 +19,8 @@ const SignUpPage = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+        <div className="min-h-screen bg-gray-400/70 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-md w-full max-w-md p-8">
                 {/* Logo and Title */}
                 <div className="text-center mb-8">
                     <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
