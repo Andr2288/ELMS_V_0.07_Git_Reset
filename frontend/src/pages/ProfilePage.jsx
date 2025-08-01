@@ -23,6 +23,7 @@ const ProfilePage = () => {
     const [showEditModal, setShowEditModal] = useState(false);
     const [statsLoading, setStatsLoading] = useState(true);
     const [stats, setStats] = useState(null);
+    const [previousAchievements, setPreviousAchievements] = useState(null); // Для відстеження нових досягнень
 
     // Load data on component mount
     useEffect(() => {
@@ -52,9 +53,53 @@ const ProfilePage = () => {
         }
     }, [flashcards, categories, statsLoading]);
 
+    // Check for new achievements and show toast
+    useEffect(() => {
+        if (stats?.achievements && previousAchievements) {
+            // Перевіряємо чи є нові досягнення
+            Object.keys(stats.achievements).forEach(groupKey => {
+                const currentGroup = stats.achievements[groupKey];
+                const previousGroup = previousAchievements[groupKey];
+
+                if (previousGroup) {
+                    currentGroup.achievements.forEach(achievement => {
+                        const previousAchievement = previousGroup.achievements.find(a => a.id === achievement.id);
+
+                        // Якщо досягнення було розблоковано зараз, але не було раніше
+                        if (achievement.isUnlocked && previousAchievement && !previousAchievement.isUnlocked) {
+                            // Показуємо toast з досягненням
+                            toast.success(
+                                <div className="flex items-center space-x-3">
+                                    <div className="text-2xl">{achievement.icon}</div>
+                                    <div>
+                                        <div className="font-semibold text-gray-900">🎉 Нове досягнення!</div>
+                                        <div className="text-sm text-gray-600">{achievement.title}</div>
+                                    </div>
+                                </div>,
+                                {
+                                    duration: 5000,
+                                    style: {
+                                        background: '#f0f9ff',
+                                        border: '1px solid #0ea5e9',
+                                        borderRadius: '12px',
+                                        padding: '16px',
+                                    }
+                                }
+                            );
+                        }
+                    });
+                }
+            });
+        }
+
+        // Зберігаємо поточні досягнення для наступної перевірки
+        if (stats?.achievements) {
+            setPreviousAchievements(JSON.parse(JSON.stringify(stats.achievements)));
+        }
+    }, [stats?.achievements]);
+
     const calculateStats = () => {
         const now = new Date();
-        const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const startOfYear = new Date(now.getFullYear(), 0, 1);
 
@@ -65,10 +110,6 @@ const ProfilePage = () => {
         const manualCards = totalCards - aiGeneratedCards;
 
         // Time-based stats
-        const cardsThisWeek = flashcards.filter(card =>
-            new Date(card.createdAt) >= startOfWeek
-        ).length;
-
         const cardsThisMonth = flashcards.filter(card =>
             new Date(card.createdAt) >= startOfMonth
         ).length;
@@ -76,6 +117,32 @@ const ProfilePage = () => {
         const cardsThisYear = flashcards.filter(card =>
             new Date(card.createdAt) >= startOfYear
         ).length;
+
+        // Weekly activity starting from Monday
+        const today = new Date();
+        const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, ...
+        const daysFromMonday = (currentDay === 0) ? 6 : currentDay - 1; // Convert Sunday to 6, others to day-1
+
+        const weeklyActivity = Array.from({ length: 7 }, (_, i) => {
+            const date = new Date(today);
+            date.setDate(date.getDate() - daysFromMonday + i); // Start from Monday
+
+            const dayCards = flashcards.filter(card => {
+                const cardDate = new Date(card.createdAt);
+                return cardDate.toDateString() === date.toDateString();
+            }).length;
+
+            const isToday = date.toDateString() === today.toDateString();
+
+            return {
+                day: date.toLocaleDateString('uk-UA', { weekday: 'short' }),
+                date: date.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' }),
+                count: dayCards,
+                isToday: isToday
+            };
+        });
+
+        const cardsThisWeek = weeklyActivity.reduce((sum, day) => sum + day.count, 0);
 
         // Category distribution
         const categoryStats = categories.map(category => {
@@ -103,24 +170,6 @@ const ProfilePage = () => {
             });
         }
 
-        // Activity by day of week (last 7 days)
-        const weeklyActivity = Array.from({ length: 7 }, (_, i) => {
-            const date = new Date();
-            date.setDate(date.getDate() - i);
-            const dayCards = flashcards.filter(card => {
-                const cardDate = new Date(card.createdAt);
-                return cardDate.toDateString() === date.toDateString();
-            }).length;
-
-            return {
-                day: date.toLocaleDateString('uk-UA', { weekday: 'short' }),
-                date: date.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' }),
-                count: dayCards
-            };
-        }).reverse();
-
-
-
         // Learning streaks and achievements
         const achievements = calculateAchievements(totalCards, aiGeneratedCards, categoryStats, cardsThisWeek, flashcards);
 
@@ -134,7 +183,6 @@ const ProfilePage = () => {
             cardsThisYear,
             categoryStats: categoryStats.slice(0, 5), // Top 5 categories
             weeklyActivity,
-            monthlyActivity,
             achievements
         });
     };
@@ -263,6 +311,74 @@ const ProfilePage = () => {
         });
 
         return allAchievements;
+    };
+
+    // Функція для отримання поточного значення для досягнення
+    const getCurrentValueForAchievement = (achievement, stats) => {
+        if (!stats) return 0;
+
+        switch (achievement.id) {
+            // Creation achievements
+            case 'first_card':
+            case 'getting_started':
+            case 'steady_learner':
+            case 'scholar':
+            case 'expert':
+            case 'master':
+                return stats.totalCards;
+
+            // AI achievements
+            case 'ai_curious':
+            case 'ai_user':
+            case 'ai_enthusiast':
+            case 'ai_master':
+                return stats.aiGeneratedCards;
+
+            // Organization achievements
+            case 'first_folder':
+            case 'organizer':
+            case 'categorizer':
+            case 'architect':
+                return stats.totalCategories;
+
+            // Activity achievements
+            case 'daily_learner':
+                const today = new Date().toDateString();
+                const todayCards = flashcards.filter(card =>
+                    new Date(card.createdAt).toDateString() === today
+                ).length;
+                return todayCards;
+
+            case 'weekly_active':
+            case 'productive_week':
+            case 'super_active':
+                return stats.cardsThisWeek;
+
+            case 'month_champion':
+                return stats.cardsThisMonth;
+
+            // Special achievements
+            case 'balanced':
+                if (stats.totalCards < 20) return 0;
+                const aiPercentage = (stats.aiGeneratedCards / stats.totalCards) * 100;
+                // Прогрес = наскільки близько до 50% (ідеального балансу)
+                const distanceFrom50 = Math.abs(aiPercentage - 50);
+                return Math.max(0, 100 - distanceFrom50 * 2); // Чим ближче до 50%, тим більший прогрес
+
+            case 'completionist':
+                if (stats.totalCards < 10) return stats.totalCards * 10; // 10% за кожну картку до 10
+                const completeCards = flashcards.filter(card =>
+                    card.translation && (card.examples?.length > 0 || card.example)
+                ).length;
+                return (completeCards / stats.totalCards) * 100;
+
+            case 'linguist':
+                // Поки що завжди 0, бо не маємо логіки для різних мов
+                return 0;
+
+            default:
+                return 0;
+        }
     };
 
     // Open edit modal
@@ -450,20 +566,30 @@ const ProfilePage = () => {
                                     <div className="space-y-4">
                                         {stats.weeklyActivity.map((day, index) => (
                                             <div key={index} className="flex items-center space-x-3">
-                                                <div className="w-12 text-sm text-gray-600 text-right">
+                                                <div className={`w-12 text-sm text-right font-medium ${
+                                                    day.isToday
+                                                        ? 'text-blue-600 bg-blue-50 px-2 py-1 rounded-md'
+                                                        : 'text-gray-600'
+                                                }`}>
                                                     {day.day}
                                                 </div>
                                                 <div className="flex-1">
                                                     <div className="bg-gray-200 rounded-full h-3 relative overflow-hidden">
                                                         <div
-                                                            className="bg-blue-500 h-full rounded-full transition-all duration-500"
+                                                            className={`h-full rounded-full transition-all duration-500 ${
+                                                                day.isToday
+                                                                    ? 'bg-blue-600 shadow-md'
+                                                                    : 'bg-blue-500'
+                                                            }`}
                                                             style={{
                                                                 width: `${Math.max(5, (day.count / Math.max(...stats.weeklyActivity.map(d => d.count), 1)) * 100)}%`
                                                             }}
                                                         ></div>
                                                     </div>
                                                 </div>
-                                                <div className="w-8 text-sm font-medium text-gray-700 text-right">
+                                                <div className={`w-8 text-sm font-medium text-right ${
+                                                    day.isToday ? 'text-blue-600' : 'text-gray-700'
+                                                }`}>
                                                     {day.count}
                                                 </div>
                                             </div>
@@ -519,84 +645,209 @@ const ProfilePage = () => {
                                 </div>
 
                                 {stats.achievements && Object.keys(stats.achievements).length > 0 ? (
-                                    <div className="space-y-6">
+                                    <div className="space-y-8">
                                         {Object.entries(stats.achievements).map(([groupKey, group]) => {
                                             const unlockedCount = group.achievements.filter(a => a.isUnlocked).length;
                                             const totalCount = group.achievements.length;
 
-                                            // Мапінг кольорів для безпечного використання в Tailwind
-                                            const colorMap = {
-                                                blue: { bg: 'bg-blue-500', text: 'text-blue-700', border: 'border-blue-200' },
-                                                purple: { bg: 'bg-purple-500', text: 'text-purple-700', border: 'border-purple-200' },
-                                                emerald: { bg: 'bg-emerald-500', text: 'text-emerald-700', border: 'border-emerald-200' },
-                                                orange: { bg: 'bg-orange-500', text: 'text-orange-700', border: 'border-orange-200' },
-                                                pink: { bg: 'bg-pink-500', text: 'text-pink-700', border: 'border-pink-200' }
-                                            };
-
-                                            const colors = colorMap[group.color] || colorMap.blue;
-
                                             return (
-                                                <div key={groupKey} className="border border-gray-100 rounded-lg p-4">
+                                                <div key={groupKey} className="space-y-4">
                                                     {/* Group Header */}
-                                                    <div className="flex items-center justify-between mb-4">
-                                                        <div className="flex items-center space-x-2">
-                                                            <span className="text-lg">{group.icon}</span>
-                                                            <h4 className={`font-semibold ${colors.text}`}>
-                                                                {group.title}
-                                                            </h4>
-                                                        </div>
-                                                        <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                                                            {unlockedCount}/{totalCount}
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Progress Bar */}
-                                                    <div className="mb-4">
-                                                        <div className="w-full bg-gray-200 rounded-full h-2">
-                                                            <div
-                                                                className={`${colors.bg} h-2 rounded-full transition-all duration-500`}
-                                                                style={{ width: `${(unlockedCount / totalCount) * 100}%` }}
-                                                            ></div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Achievements Grid */}
-                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                        {group.achievements.map((achievement) => (
-                                                            <div
-                                                                key={achievement.id}
-                                                                className={`flex items-center space-x-3 p-3 rounded-lg transition-all ${
-                                                                    achievement.isUnlocked
-                                                                        ? 'bg-green-50 border border-green-200'
-                                                                        : 'bg-gray-50 border border-gray-200 opacity-60'
-                                                                }`}
-                                                            >
-                                                                <div className={`text-xl ${achievement.isUnlocked ? '' : 'grayscale'}`}>
-                                                                    {achievement.icon}
-                                                                </div>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <h5 className={`font-medium text-sm ${
-                                                                        achievement.isUnlocked
-                                                                            ? achievement.color
-                                                                            : 'text-gray-500'
-                                                                    }`}>
-                                                                        {achievement.title}
-                                                                    </h5>
-                                                                    <p className={`text-xs ${
-                                                                        achievement.isUnlocked
-                                                                            ? 'text-gray-600'
-                                                                            : 'text-gray-400'
-                                                                    } truncate`}>
-                                                                        {achievement.description}
-                                                                    </p>
-                                                                </div>
-                                                                {achievement.isUnlocked && (
-                                                                    <div className="flex-shrink-0">
-                                                                        <Award className="w-4 h-4 text-green-600" />
-                                                                    </div>
-                                                                )}
+                                                    <div className="flex items-center justify-between pb-4 border-b border-gray-100">
+                                                        <div className="flex items-center space-x-3">
+                                                            <span className="text-2xl">{group.icon}</span>
+                                                            <div>
+                                                                <h4 className="font-bold text-gray-900 text-xl">
+                                                                    {group.title}
+                                                                </h4>
+                                                                <p className="text-sm text-gray-500">
+                                                                    {unlockedCount} з {totalCount} виконано
+                                                                </p>
                                                             </div>
-                                                        ))}
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <div className="text-2xl font-bold text-blue-600">
+                                                                {Math.round((unlockedCount / totalCount) * 100)}%
+                                                            </div>
+                                                            <div className="text-xs text-gray-500">завершено</div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Achievements List */}
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        {group.achievements.map((achievement) => {
+                                                            const currentValue = getCurrentValueForAchievement(achievement, stats);
+                                                            const progress = achievement.isUnlocked ? 100 :
+                                                                typeof achievement.threshold === 'number' ?
+                                                                    Math.min((currentValue / achievement.threshold) * 100, 100) :
+                                                                    currentValue;
+
+                                                            const getTaskDescription = () => {
+                                                                if (achievement.isUnlocked) {
+                                                                    return "✅ Завдання виконано!";
+                                                                }
+
+                                                                switch (achievement.id) {
+                                                                    case 'first_card':
+                                                                        return `Створіть свою першу флешкартку (${currentValue}/1)`;
+                                                                    case 'getting_started':
+                                                                        return `Створіть 10 флешкарток (${currentValue}/10)`;
+                                                                    case 'steady_learner':
+                                                                        return `Створіть 50 флешкарток (${currentValue}/50)`;
+                                                                    case 'scholar':
+                                                                        return `Створіть 100 флешкарток (${currentValue}/100)`;
+                                                                    case 'expert':
+                                                                        return `Створіть 500 флешкарток (${currentValue}/500)`;
+                                                                    case 'master':
+                                                                        return `Створіть 1000 флешкарток (${currentValue}/1000)`;
+
+                                                                    case 'ai_curious':
+                                                                        return `Використайте ШІ для створення першої картки (${currentValue}/1)`;
+                                                                    case 'ai_user':
+                                                                        return `Створіть 10 карток за допомогою ШІ (${currentValue}/10)`;
+                                                                    case 'ai_enthusiast':
+                                                                        return `Створіть 50 карток за допомогою ШІ (${currentValue}/50)`;
+                                                                    case 'ai_master':
+                                                                        return `Створіть 100 карток за допомогою ШІ (${currentValue}/100)`;
+
+                                                                    case 'first_folder':
+                                                                        return `Створіть свою першу папку (${currentValue}/1)`;
+                                                                    case 'organizer':
+                                                                        return `Створіть 5 папок для організації (${currentValue}/5)`;
+                                                                    case 'categorizer':
+                                                                        return `Створіть 10 папок (${currentValue}/10)`;
+                                                                    case 'architect':
+                                                                        return `Створіть 20 папок (${currentValue}/20)`;
+
+                                                                    case 'daily_learner':
+                                                                        return `Створіть 3 картки сьогодні (${currentValue}/3)`;
+                                                                    case 'weekly_active':
+                                                                        return `Створіть 10 карток цього тижня (${currentValue}/10)`;
+                                                                    case 'productive_week':
+                                                                        return `Створіть 20 карток цього тижня (${currentValue}/20)`;
+                                                                    case 'super_active':
+                                                                        return `Створіть 50 карток цього тижня (${currentValue}/50)`;
+                                                                    case 'month_champion':
+                                                                        return `Створіть 100 карток цього місяця (${currentValue}/100)`;
+
+                                                                    case 'balanced':
+                                                                        if (stats.totalCards < 20) {
+                                                                            return `Створіть мінімум 20 карток для розблокування (${stats.totalCards}/20)`;
+                                                                        }
+                                                                        const aiPercentage = Math.round((stats.aiGeneratedCards / stats.totalCards) * 100);
+                                                                        return `Досягніть балансу: 40-60% ШІ карток (зараз ${aiPercentage}%)`;
+
+                                                                    case 'completionist':
+                                                                        if (stats.totalCards < 10) {
+                                                                            return `Створіть мінімум 10 карток (${stats.totalCards}/10)`;
+                                                                        }
+                                                                        const completeCards = flashcards.filter(card =>
+                                                                            card.translation && (card.examples?.length > 0 || card.example)
+                                                                        ).length;
+                                                                        return `Додайте переклад і приклади до всіх карток (${completeCards}/${stats.totalCards})`;
+
+                                                                    case 'linguist':
+                                                                        return `Додайте картки з 3 різних мов (функція в розробці)`;
+
+                                                                    default:
+                                                                        return achievement.description;
+                                                                }
+                                                            };
+
+                                                            return (
+                                                                <div
+                                                                    key={achievement.id}
+                                                                    className={`relative overflow-hidden rounded-xl border-2 transition-all duration-300 hover:shadow-lg ${
+                                                                        achievement.isUnlocked
+                                                                            ? 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 shadow-md'
+                                                                            : progress > 0
+                                                                                ? 'bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200 hover:border-blue-300'
+                                                                                : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                                                                    }`}
+                                                                >
+                                                                    {/* Achievement Content */}
+                                                                    <div className="p-6">
+                                                                        <div className="flex items-start space-x-4">
+                                                                            {/* Icon */}
+                                                                            <div className={`text-4xl flex-shrink-0 ${
+                                                                                achievement.isUnlocked ? '' : progress < 10 ? 'grayscale opacity-60' : 'opacity-80'
+                                                                            }`}>
+                                                                                {achievement.icon}
+                                                                            </div>
+
+                                                                            {/* Content */}
+                                                                            <div className="flex-1 min-w-0">
+                                                                                <div className="flex items-center justify-between mb-2">
+                                                                                    <h5 className={`text-lg font-bold ${
+                                                                                        achievement.isUnlocked
+                                                                                            ? 'text-green-800'
+                                                                                            : progress > 0
+                                                                                                ? 'text-blue-800'
+                                                                                                : 'text-gray-600'
+                                                                                    }`}>
+                                                                                        {achievement.title}
+                                                                                    </h5>
+
+                                                                                    {/* Status Badge */}
+                                                                                    {achievement.isUnlocked ? (
+                                                                                        <div className="flex items-center space-x-1 bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium">
+                                                                                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                                            </svg>
+                                                                                            <span>Виконано</span>
+                                                                                        </div>
+                                                                                    ) : progress > 0 ? (
+                                                                                        <div className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-medium hidden">
+                                                                                            {Math.round(progress)}%
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <div className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-medium">
+                                                                                            Заблоковано
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+
+                                                                                {/* Task Description */}
+                                                                                <p className={`text-sm mb-3 ${
+                                                                                    achievement.isUnlocked
+                                                                                        ? 'text-green-700 font-medium'
+                                                                                        : progress > 0
+                                                                                            ? 'text-blue-700'
+                                                                                            : 'text-gray-500'
+                                                                                }`}>
+                                                                                    {getTaskDescription()}
+                                                                                </p>
+
+                                                                                {/* Progress Bar */}
+                                                                                {!achievement.isUnlocked && (
+                                                                                    <div className="space-y-2">
+                                                                                        <div className="flex justify-between text-xs text-gray-600">
+                                                                                            <span>Прогрес</span>
+                                                                                            <span>{Math.round(progress)}%</span>
+                                                                                        </div>
+                                                                                        <div className="w-full bg-gray-200 rounded-full h-2">
+                                                                                            <div
+                                                                                                className={`h-2 rounded-full transition-all duration-500 ${
+                                                                                                    progress > 50 ? 'bg-blue-500' : 'bg-blue-400'
+                                                                                                }`}
+                                                                                                style={{ width: `${Math.max(progress, 2)}%` }}
+                                                                                            ></div>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Completed Overlay */}
+                                                                    {achievement.isUnlocked && (
+                                                                        <div className="absolute top-0 right-0 w-0 h-0 border-l-[40px] border-l-transparent border-t-[40px] border-t-green-500">
+
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
                                                     </div>
                                                 </div>
                                             );
@@ -626,7 +877,7 @@ const ProfilePage = () => {
                                     </div>
                                     <div className="text-center">
                                         <div className="text-3xl font-bold text-green-600 mb-1">
-                                            {stats.cardsThisWeek > 0 ? Math.round(stats.cardsThisWeek / 7 * 10) / 10 : 0}
+                                            {stats.cardsThisWeek > 0 ? Math.round(stats.cardsThisWeek / 7) : 0}
                                         </div>
                                         <p className="text-sm text-gray-700">Карток/день</p>
                                         <p className="text-xs text-gray-500 mt-1">Середня активність тижня</p>

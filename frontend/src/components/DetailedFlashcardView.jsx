@@ -272,8 +272,6 @@ const DetailedFlashcardView = ({ flashcards, onEdit }) => {
           ...currentCard,
           examples: updatedCard.examples
         });
-
-        toast.success("Нові приклади згенеровано!");
       } else {
         toast.error("Помилка генерації прикладів");
       }
